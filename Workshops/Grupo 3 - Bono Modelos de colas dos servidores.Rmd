@@ -1,0 +1,183 @@
+---
+title: "Bono Modelos de colas dos servidores"
+subtitle: Simulación Digital - Grupo H1
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa
+217206 - Kevin Javier Lozano Galvis
+2161342 - Carlos Alberto Palencia Pombo
+Grupo 3
+
+Grupo impar:
+
+Realice la implementación en un R notebook del (a) modelo de cola con dos servidores en serie
+
+Piensen en un sistema de la vida real en el cuál podría utilizar el modelo de colas que implementó. Basado en el sistema, seleccione las distribuciones de probabilidad para la llegada de entidades (clientes) y la distribución del tiempo de servicio de cada servidor para su implementación. Indique claramente cuál es el sistema que en el que usted se basó para seleccionar las distribuciones y cuales son esas distribuciones en el notebook desarrollado.
+
+#Solución
+
+En un cine, las personas deben pasar por el cajero en donde compran sus boletos y las comidas que desean, el tiempo de atención del cajero está dado a partir de una distribución triangular desde 0 a 5 y con media de 4 minutos, debido a que las políticas de la empresa establecen que el tiempo máximo que se debe tardar la atención de cada cliente es 5 minutos.
+Luego de esto, el cliente pasa a la zona de entrega de comida, en la cual el tiempo de atención está dado por una distribución normal con media de 3 minutos y desviación de 2 minutos.
+Además, la afluencia de clientes en el cine está determinada por un proceso de Poisson no homogéneo con lambda como se describe a continuación:
+
+```{r}
+lambda<-function(x)(20)*I(x<=10)+(10+20*x)*I(x>10&x<=14)+(290+30*(x-14))*I(x>=14&x<=18)+(410)*I(x>18&x<=24)
+curve(lambda(x),xlim=c(0,24),ylab="lambda(x)",col="red")
+```
+
+
+```{r}
+S<-vector()
+u1<-vector()
+u2<-vector()
+procpois<-function(Tmax) {
+  t<-0;I<-0  
+      for (i in 1:10000) {
+                             u1[i]<-runif(1);   t<-t-((1/410)*log(u1[i]))
+                            if (t>Tmax) {print(i);break}
+                            if (t<=Tmax) u2[i]<-runif(1)
+                            if(u2[i]<=(lambda(t)/410)) {I<-I+1;S[I]<-t}}
+    return(S)
+  }
+
+LL=procpois(24)
+LL[length(LL)+1]<-Inf
+```
+
+```{r}
+library(EnvStats)
+tserv1<-function() {
+                t<-rtri(1, min = 0, max = 5/60, mode = 4/60)
+                return(t)
+}
+tserv2<-function() {
+                t<-rnorm(1, 4/60, 2/60)
+                return(t)
+}
+```
+
+```{r}
+
+unserv<-function(LL)  
+{   #Bucle principal de la aplicación
+    t<-0
+    N1<-0           # clientes en s1
+    N2<-0           # clientes en s2
+    t<-0            # variable tiempo
+    NLL<-0              # contador de llegadas
+    NS<-0           # contador de salidas
+    Y1<-vector()     # tiempos de atención en s1
+    Y2<-vector()     # tiempos de atención en s2
+    Sal<-vector()       # output instantes de salida
+    c1<-vector()     # clientes en s1
+    c2<-vector()     # clientes s2
+    L1<-vector()    #Tiempos de s1
+    L2<-vector()    #Tiempos de s2
+    #Lista de sucesos
+    tLL<-LL[1]      # instante de llegada del cliente 1
+    tS<-Inf     # instante salida cliente
+    t1<-Inf     # tiempo de atención s1
+    t2<-Inf     # tiempo de atención s2
+    tm<-vector()    # tiempo cliente en el sistema
+    i<-1
+    j<-1
+    k<-1
+while(i<=1000)
+    {
+
+# Caso 1
+
+    if ((tLL<=t1) & (tLL<=t2))
+        {
+        t<-tLL          # t al instante de llegada 
+        NLL<-NLL+1      # contador número de llegadas
+        N1<-N1+1
+        i<-i+1
+        L1[NLL]=t
+        tLL<-LL[i]      # leemos las llegadas
+         c1[length(c1)+1]<-N1  # recogemos el número de clientes en el sistema
+        if (N1==1)       # en el caso de que exista un único cliente en el sistema
+            {       
+            Y1[j]<-tserv1()   # tiempos de atención
+            t1 <- t+Y1[j]        # asignamos un tiempo de atención al único cliente
+            j<-j+1  
+                }
+    }
+      
+      
+
+# Caso 2
+
+    if ((tLL>t1) & (t1<=t2))
+        {
+        t<-t1          # t al instante de t1 
+        N1<-N1-1
+        N2<-N2+1
+        i<-i+1
+        L2[NLL-N1]=t
+        c1[length(c1)+1]<-N1  # recogemos el número de clientes en el sistema
+        c2[length(c2)+1]<-N2  # recogemos el número de clientes en el sistema
+        if(N1==0){
+          t1<-Inf
+        }
+        else{
+          Y1[j]<-tserv1()   # tiempos de atención
+          t1 <- t+Y1[j]        # asignamos un tiempo de atención al único cliente
+          j<-j+1
+        }
+        if (N2==1)       # en el caso de que exista un único cliente en el sistema
+            {       
+            Y2[k]<-tserv2()   # tiempos de atención
+            t2 <- t+Y2[k]        # asignamos un tiempo de atención al único cliente
+            k<-k+1  
+                }
+        }
+
+      
+# Caso 3
+
+    if((t2<t1) & (t2<tLL))
+        {   
+        t<-t2
+        NS<-NS + 1
+        N2<-N2-1
+        c2[length(c2)+1]<-N2
+        Sal[NS]<-t
+        tm[NS]<-Sal[NS]-LL[NS]  # tiempo en el sistema 
+        if (N2 == 0) # si no quedan clientes y quedan clientes por llegar
+                {       
+                t2<-Inf 
+                }
+      
+        if (N2 >0) # si hay clientes generar tiempo de sevicio
+                {       
+                Y2[k]<-tserv2()   # tiempos de atención
+            t2 <- t+Y2[k]        # asignamos un tiempo de atención al único cliente
+            k<-k+1  
+                }
+            }
+
+# después de la hora de cierre
+
+    }
+    resultados<-list("tiempos en el sistema",tm,"clientes en servidor 1",c1,"clientes en servidor 2",c2,
+                "tiempo medio cliente en el sistema",
+                mean(tm,na.rm=TRUE),
+                "número medio clientes en servidor 1",mean(c1),
+                "número medio clientes en servidor 2",mean(c2),"tiempos atención en s1",Y1,"tiempos atención en s2",Y2)
+    return(resultados)
+}
+```
+
+
+```{r}
+out = unserv(LL)
+plot(unserv(LL)[[6]],type="l", ylab="Numero de clientes en s2", xlab="Eventos")
+```
+
+

@@ -1,0 +1,412 @@
+---
+title: "Taller Datos Análisis Simulados"
+output: html_notebook
+---
+**2170688 - Brayan Rodolfo Barajas Ochoa**
+
+**217206 - Kevin Javier Lozano Galvis**
+
+**2161342 - Carlos Alberto Palencia Pombo**
+
+## 1) Realice el problema 2 del "TALLER ENFOQUE DE SIMULACIÓN BASADO EN EVENTOS DISCRETOS":
+
+Un sistema necesita n máquinas funcionando. Para asegurarse en caso de fallas mecánicas se dispone de algunas máquinas adicionales. Si una máquina falla es inmediatamente reemplazada por una de las máquinas disponibles. La máquina con fallos es enviada a la sección de reparación. La sección de reparación consiste en una sola persona que repara las máquinas de una en una. Una vez la máquina es reparada se reincorpora al conjunto de máquinas disponibles como reemplazo. Todos los tiempos de reparación son variables aleatorias independientes con distribución de probabilidad G. Cada vez que una maquina es puesta en uso, el tiempo que funciona antes de sufrir una falla mecánica es una variable aleatoria con función de probabilidad F. Se dice que el sistema colapsa cuando una máquina falla y no hay máquinas extra disponibles para reemplazo. Asumiendo que inicialmente existen n + s máquinas funcionales de las cuales n están en uso, y s pueden ser utilizadas para reemplazar las máquinas que fallen, encuentre el tiempo esperado T, en el cual el sistema colapsa después de ejecutar la simulación 100 veces, si n=4, s=3, $F(x) = 1 - e^{-x},$ y $G(x) = 1 - e^{-2x}$. Realice el análisis del sistema y utilizando la estrategia de simulación basada en eventos discretos implemente la simulación en R.
+
+Simulación
+
+Como lo que se quiere estudiar es el tiempo en el que colapsa el sistema, es decir, en el que la cantidad de máquinas por reparar es igual a la cantidad de máquinas de reemplazo más una; se centra la simulación a esta variable, en este caso denotada como r.
+
+Para realizar la implementación de la simulación, se parte de un conjunto de n tiempos que siguen la distribución F, los cuales indican el tiempo en el que se estropeará cada máquina. A partir de esto, se utiliza para comparar con el siguiente tiempo de reparación y así escoger el próximo evento a ocurrir.
+
+s: máquinas de reemplazo.
+
+r: máquinas dañadas (por reparar).
+
+tf: tiempo del próximo fallo.
+
+tr: tiempo de reparación.
+```{r}
+#Distribucion F para averia
+t.averia <- function(x=1){
+  return((-1/1)*log(runif(x)))
+}
+#Distribucion G para reparacion
+t.repara <- function(x=1){
+  return((-1/2)*log(runif(x)))
+}
+```
+
+```{r}
+#Distribucion F para averia
+simulacion<- function(n=4, s=3) { #Funcion que realiza una simulacion
+  #Se inicializan variables
+  t<-0 # Tiempo
+  r<-0 # Maquinas dañadas
+  tr<-Inf
+  #Se crean los tiempos de las averias y se ordenan
+  TA<-t.averia(n)
+  TA<-sort(TA)
+  repeat{
+    #Se selecciona el tiempo de la siguiente falla
+    tf<-TA[1]
+    #Caso 1 - si tiempo de falla menor al de reparacion
+    if(tf<tr){
+      r<-r+1 #se incrementan reparaciones
+      t<-tf #Se actualiza tiempo
+      if(r==s+1){
+        Tc<-t #El sistema colapsa
+        break
+      }
+      else{
+        TA<-sort(c(TA[2:n],(t+t.averia()))) #Se actualizan los tiempos de falla
+      }
+      if(r==1){
+        tr<-t+t.repara() #Si hay una reparacion, se actualiza tiempo de reparacion
+      }
+    }
+    #Caso 2 - Si tiempo de reparacion menor a tiempo de falla
+    if(tf>=tr){
+      r<-r-1 #se elimina una reparacion
+      t<-tr #Se actualiza el tiempo
+      if(r>0){ #Si quedan reparaciones
+        tr<-t+t.repara() #Se actualiza tiempo de reparacion
+      }
+      else{
+        tr<-Inf #Tiempo de reparacion infinito
+      }
+    }
+    
+  }
+  #Se retorna tiempo de colapso
+  return(Tc)
+}
+
+#Funcion para realizar nexp numero de experimentos
+experimentos<-function(nexp=100) {
+  Tesp<-vector(length=nexp)
+  for(i in 1:nexp){
+    Tesp[i]<-simulacion()
+  }
+  return(Tesp)
+}
+```
+
+
+### a) Calcule la estimación del Tiempo esperado de colapso (media muestral) y su la varianza esperada que tiene ese estimador para las 100 réplicas de simulación. Asuma que las unidades de tiempo de las funciones de distribución F y G están en horas.
+```{r}
+
+calculoMediaVar<-function(vectorDatos) {
+  #Calculamos la Media Muestral
+  k <- length(vectorDatos)
+  sum1<-0
+  sum2<-0
+  for (i in vectorDatos){
+    sum1<-sum1 + i
+  }
+  media<- sum1/k
+  #Calculamos la varianza muestral
+  for (i in vectorDatos){
+    sum2<-sum2+(i-media)^2
+  }
+  s<-(1/(k-1))*sum2
+  # Retirnamos la media, la variazna y los datos con los que se realizaron los calculos
+  return(list(m=media, s=s, datos=vectorDatos))
+}
+
+```
+
+### b) Use el método visto en clase para determinar el número de réplicas de simulación que permitan realizar una buena estimación puntual del Tiempo esperado de colapso, con un error máximo de 6 minutos para la desviación estándar.
+```{r}
+# Calculamos la cantidad de interacciones
+# errMax el error maximo permitido
+# results lista con la media, variazna y datos del experimento
+cantInteracciones<-function(errMax=6/60, results=resultadosExper(experimentos())){
+  m <- results$m
+  s<- results$s
+  tesp<-results$datos
+  k<- length(tesp)
+  while ((sqrt(s)/sqrt(k))>errMax) { #verificamos los promedios tengan un error menor a errMax
+    # Si el error maximo no es menor que errMax
+    tesp[k+1]<-simulacion() #Se ejecuta una simulacion mas y se guarda
+    # Se recalcula la media y la varianza
+    mn<- m + ((tesp[k+1]-m)/(k+1))
+    s <- (1-(1/k))*s + (k+1)*(mn - m)^2
+    m <- mn
+    k<-k+1
+    # El proceso se repite hasta que el error sea menor 6 minutos
+  }
+  #Retornamos el promedio de tiempo de espera de colapso y la cantidad de iteracciones con error menor a errMax
+  return(list(m=m, iteracciones=length(tesp)))
+}
+# Cuando el error de menor que 6 minutos se imprimi la cantidad promedio de tiempo de espera y la cantidad de interacciones
+
+```
+
+### c) Use el método visto en clase para determinar un intervalo de confianza del 97% para el tiempo esperado de colapso, y con un error máximo de 5 minutos. Reporte el intervalo de confianza y el número de iteraciones.
+```{r}
+# Calculamos la cantidad de interacciones
+# errMax el error maximo permitido
+# results lista con la media, variazna y datos del experimento
+# interConf el intervalo de confianza de la funcion
+cantInteraInterv<-function(errMax=5/60, results=resultadosExper(experimentos()), interConf=0.97){
+  m <- results$m
+  s<- results$s
+  tesp<-results$datos
+  alpha<-1-interConf
+  alphaMed<- alpha/2
+  z<-qnorm(1-alphaMed)
+  k<- length(tesp)
+  while ((2*z*sqrt(s)/sqrt(k))>errMax) { #verificamos los promedios tengan un error menor a errMax
+    # Si el error maximo no es menor que errMax
+    tesp[k+1]<-simulacion() #Se ejecuta una simulacion mas y se guarda
+    # Se recalcula la media y la varianza
+    mn<- m + ((tesp[k+1]-m)/(k+1))
+    s <- (1-(1/k))*s + (k+1)*(mn - m)^2
+    m <- mn
+    k<-k+1
+    # El proceso se repite hasta que el error sea menor 6 minutos
+  }
+  #Retornamos el promedio de tiempo de espera de colapso,la cantidad de iteracciones con error menor a errMax y el intervalo
+  intervalo<-z*sqrt(results$s)/sqrt(k)
+  return(list(m=m, iteracciones=length(tesp), inter=intervalo))
+}
+```
+
+### Resultados
+```{r}
+mediaVan<-calculoMediaVar(experimentos(100))
+results1<-cantInteracciones(errMax = 6/60, results = mediaVan)
+results2<-cantInteraInterv(errMax = 5/60, results = mediaVan, interConf = 0.97)
+sprintf("Tiempo promedio de espera de colapso: %f horas", mediaVan$m)
+sprintf("Varianza esperada: %f", mediaVan$m)
+sprintf("Tiempo promedio de espera de colapso con un error maximo de 6 minutos: %f horas", results1$m)
+sprintf("Cantidad de replicas que permiten el calculo de una buena estimacion del Tiempo de espera de colapso con error maximo de 6 minutos: %d replicas", results1$iteracciones)
+sprintf("Tiempo promedio de espera de colapso con un error maximo de 5 minutos y un intervalo de confianza de 0.97: %f +- %f horas", results1$m, results2$inter)
+sprintf("Cantidad de replicas que permiten el calculo de una buena estimacion del Tiempo de espera de colapso con un error maximo de 5 minutos y un intervalo de confianza de 0.97: %d replicas", results2$iteracciones)
+```
+
+## 2) Realice el problema 3 del Parcial 2:
+
+Considere un modelo de cola de un solo servidor en el cual los clientes llegan siguiendo un proceso de Poisson no homogéneo. Al llegar ellos son atendidos por el servidor si este está libre, o de lo contrario se unen a la cola. Suponga, sin embargo, que cada cliente solo esperará una cantidad aleatoria de tiempo, que sigue la distribución F, en la cola antes de dejar el sistema. Sea G la función de distribución que determina el tiempo de atención del servidor. Defina variables y eventos para analizar este modelo, y dé las condiciones de actualización necesarias para implementar este modelo utilizando el paradigma de simulación basada en eventos discretos vista en clase. Este análisis debe ir anexado a su solución en el mismo notebook o en un archivo pdf adicional.
+
+### Análisis
+**Distribuciones**
+* F, distribución que sigue el tiempo de espera del cliente antes de abandonar el sistema
+* G, distribucion que sigue el tiempo de atención del servidor
+
+**Variables: **
+
+* Tiempo (t)
+* Numeros de clientes en el sistema (n)
+* Numero de llegadas (nl)
+* Numero de Salidas (ns)
+* Numero de perdidas (np)
+
+**Eventos: **
+
+* Tiempo de siguiente llegada de cliente (tl)
+* Tiempo de atencion del servidor (ta)
+* Tiempo de tiempo de espera del cliente antes de irse (tp)
+* Tiempo de siguiente servicio exitoso o completado (tsc)
+* tiempo de salida del sistema (ts)
+
+**Actualizaciones: **
+
+* El sistema se actualiza principalmente con los eventos de salida y llegada de clientes, pero tambien se debe realizar una actualización a la variable np en relación con el evento de proxima perdida tp. Se debe tener encuenta la condición de tp>ts para que un cliente pueda completar el servicio.
+
+
+
+```{r}
+
+#Como evoluciona el sistema en un Tiempo especifico en horas
+servidor<-function(Tmax, lambda){
+  tls<-tiempoLlegada(Tmax, lambda) # Vector con los tiempos de llegada del cliente
+  tls[length(tls)+1]<-Inf
+  t<-0 #Tiempo 
+  n<-0 #numero de clientes en el sistema
+  nl<-0 #Contador de llegadas al sistema
+  np<-0 #contador de clientes que abandonan el sistema
+  ns<-0 #Contador de salidas exitosas del sistema
+  nse<-0 #Contador de servicios exitosos
+  TA<-vector() #Vector de tiempos de atencion del cliente
+  IS<- vector() #Vector de instantes de salida
+  CS<-vector() #Vector de clientes en el sistema
+  TSE<-vector() #Vector de tiempo de servicio exitosos
+  TPC<-vector() #Vector de tiempo de perdida de cliente
+  TAC<-0 #Tiempo despues de haber pasado Tmax
+  
+  #Lista de suscesos
+  tl<-tls[1]
+  ts<-Inf
+  tcs<-vector() #Tiempos de los clientes en el sistema
+  tp<-0 #Inicializamos el tiempo de espera del cliente antes de irse en 0
+  tsc<-0 #Inicializamos un tiempo de servicio exitoso o completado en O
+  
+  j<-1
+  i<-1
+  repeat{
+    #Caso 1: Cliente llega al sistema cuando esta vacio (no hay cola)
+    if(n==0){
+      if((tl!=Inf)&(tl<=ts)&(tl<=Tmax)){
+        t<-tl #Asignamos el tiempo de llegada a nuestra variable t
+        nl<-nl+1 #Aumentamos el numero de llegadas
+        tp<-0
+        tsc<-tl
+        TSE[1]<-tsc #Guardamos el tiempo de servicio completado
+        TPC[1]<-tp #Guardamos el tiempo de espera
+        i<-i+1
+        tl<-tls[i]
+        n<-n+1
+        CS[length(CS)+1]<-n
+        if(n==1){
+          TA[j]<-F()
+          ts<-t+TA[j]
+          j<-j+1
+          nse<-nse+1
+        }
+      }
+    }
+    
+    #Caso 2: Hay Cola en el sistema
+    if((n>0) & tl!=Inf){
+      t<-tl
+      tp<-F() #Generamos el tiempo de espera
+      tsc<-tl+tp #Actualizamos el tiempo de servicio completado
+      TSE[i]<-tsc #Guardamos el tiempo de servicio completado
+      TPC[i]<-tp #Guardamos el tiempo de espera
+      nl<-nl+1
+      i<-i+1
+      tl<-tls[i]
+      n<-n+1
+      CS[length(CS)+1]<-n
+      if((tsc<=ts) & (tsc<=Tmax)){
+        if(n>1){
+          TA[j]<-G()
+          ts<-tsc+TA[j]
+          j<-j+1
+          nse<-nse+1
+        }
+      }
+    }
+    
+    #Caso 3: Cliente abandona el sistema
+    if((tl!=Inf)&(tp != 0) & (tsc != tl)){
+      if((tsc>ts) & (tsc<=Tmax)){
+        t<-ts
+        ns<-ns+1
+        n<-n-1
+        CS[length(CS)+1]<-n
+        np<-np+1 #actualizamos el numero de clientes perdidos
+        IS[ns]<-t
+        tcs[ns]<-IS[ns]-tls[ns]
+        if(n==0) ts<-Inf
+        if(n>0){
+          TA[j]<-G()
+          ts<-t+TA[j]
+          j<-j+1
+        }
+      }
+    }
+    
+    #Caso 4: el tiempo de llegada es mayor que el tiempo de salida
+    if((ts<=tl) & (ts<=Tmax)){
+      t<-ts
+      ns<-ns+1
+      n<-n-1
+      CS[length(CS)+1]<-n
+      IS[ns]<-t
+      tcs[ns]<-IS[ns]-tls[ns]
+      if(n==0) ts<-Inf
+      if(n>0){
+        TA[j]<-G()
+        ts<-t+TA[j]
+        j<-j+1
+      }
+    }
+    
+    #Caso 5: Despues del tiempo maximo del experimento 
+    if(min(tl,ts)>Tmax){
+      if(n>0){ #hay clientes en el sistema
+        t<-ts
+        ns<-ns+1
+        n<-n-1
+        CS[length(CS)+1]<-n
+        IS[ns]<-t
+        tcs[ns]<-IS[ns]-tls[ns]
+        if(n>0){
+          TA[j]<-G()
+          ts<-t+TA[j]
+          j<-j+1
+        }
+      }
+      if(n==0){ #No quedan clientes en el sistema
+        TAC<-max(t-Tmax,0)
+        break
+      }
+    }
+    
+  }
+  if(ts==Inf) ts<-t
+  resultados<-list(Tiempos_Llegadas=tls,
+                   Total_llegadas=nl,
+                   Numero_clientes_perdidos=np,
+                   Total_salidas=ns,
+                   Total_exitos=nse,
+                   Tiempos_Atencion=TA,
+                   Instantes_Salida=IS,
+                   N_Clientes_Sistema=CS,
+                   Tiempos_Servicio_exitoso=TSE,
+                   Tiempos_Perdida_clientes=TPC,
+                   Tiempo_despues_Tmax=TAC,
+                   Tiempo_clientes_sistema=tcs)
+  return(resultados)
+}
+```
+### a) Suponga que estamos interesados en estimar el número promedio de clientes perdidos en el tiempo T, donde un cliente que sale del sistema antes de ser atendido se considera perdido. Suponga que el proceso de Poisson tiene una tasa de 5, F es una distribución uniforme en el intervalo (0,5); y G es una variable aleatoria exponencial con tasa de 4. Las unidades de tiempo para el proceso de Poisson, para F y G están en horas. Implemente el modelo para realizar una simulación. Posteriormente, realice 500 réplicas de simulación para estimar el número esperado de clientes perdidos hasta el tiempo T=100 horas.
+```{r}
+# Funcion para calcular el tiempo de llegada y recibe como parametro
+# Tmax, Tiempo maximo del expirimento
+# lamb, lambda de la distribucion de Poisson
+# Lambda funcion lambda para el proceso de poisson no homogeneo
+tiempoLlegada<-function(Tmax, lamb){
+  S<-vector() # Vector Tiempo de llegada
+  t<-0; I<-0
+  repeat {
+    u1<-runif(1)
+    t<-t-(log(u1)/lamb)
+    if(t>Tmax){
+      break
+    } 
+    #Asumiendo que el proceso es homogeneo
+    I<-I+1
+    S[I] <- t
+  }
+  return(S)
+}
+
+F<-function(){ #Redefinimos las función
+  return(runif(1,0,5))
+}
+G<-function(){ #Redefinimos la función
+  return((-1/4)*log(runif(1)))
+}
+results3<-vector()
+for(i in 1:500){
+  sv<-servidor(100,5)
+  results3[i]=sv$Numero_clientes_perdidos
+}
+mediaVanSer<-calculoMediaVar(results3)
+hist(results3)
+sprintf("El promedio de clientes perdidos en un tiempo T=100 horas de %d clientes", floor(mediaVanSer$m))
+```
+### b) Use el método descrito en clase para determinar un intervalo de confianza del 99% para la cantidad de clientes perdidos durante las 100 horas de servicio.
+para poder realizar el calculo del intervalo de confianza se hace necesario obtener el error máximo permitido, para calcularlo debemos hacer uso de las tablas de nivel de confianza para $z_{\alpha/2}$.
+
+Para el intervalo de confianza dado (90%) tenemos que nuestro $\alpha/2 = 0.005$ y nuestro $z_{\alpha/2}=2.576$, ahora procedemos a calcular el margen de error o error máximo de la siguiente manera:
+```{r}
+#Primero tomamos el valor de desviación estandar dado en medianVanSer$s y lo dividimos en la raiz cuadrada de los datos entregados, luego se procede a multiplizar el z_alpha/2 por ese error estimado
+errorEstimado<-sqrt(mediaVanSer$s)/sqrt(length(mediaVanSer$datos)) 
+errMaximo<-2.576*errorEstimado
+result4<-cantInteraInterv(errMax = errMaximo, results = mediaVanSer, interConf = 0.99)
+sprintf("El promedio de clientes perdidos durante 100 horas y un error %f y un intervalo de confianza de %d%% es de %d +- %f clientes",errMaximo,99, floor(mediaVanSer$m), result4$inter)
+```

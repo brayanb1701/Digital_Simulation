@@ -1,0 +1,242 @@
+---
+title: "Simulación Digital - H1"
+output: html_notebook
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa  
+217206 - Kevin Javier Lozano Galvis  
+2161342 - Carlos Alberto Palencia Pombo  
+
+1) Una serie de buses llega a un evento deportivo de acuerdo a un proceso de Poisson con tasa media de 5 por hora. Cada bus tiene igual probabilidad de tener 20, 21, ... 40 aficionados. El número de aficionados en diferentes buses es independiente. Escriba un algoritmo que simule la llegada de aficionados en el tiempo t=1.
+
+```{r}
+
+procpois.H<-function(T,lambda)
+{
+P<-vector() #El vector P almacena la cantidad de pasajeros que llega en cada bus
+S<-vector() #El vector S almacena el tiempo de llegada de cada bus
+t<-0;I<-0   #Se inicializa la variable tiempo y el contador de buses
+    repeat 
+    {
+    u1<-runif(1); t<-t-(1/lambda)*log(u1) #Se genera un tiempo t de acuerdo a una                                               distribucion exponencial
+      if (t>T){ #Si el tiempo supera el tiempo maximo se rompe el ciclo
+        break } 
+      else { 
+        I<-I+1 #Se aumenta el contador de buses
+        S[I]<-t #Se guarda el tiempo en el vector correspondiente 
+        P[I]<-floor(runif(1, min=10, max=31)) #Se guarda la cantidad de pasajeros del                                                bus
+        }
+    }
+result<- list("S" = S, "P" = P) #Se retornaron los dos vectores
+return(result)
+}
+
+S<-function(exp){
+  m<-mean(exp)
+  k<-length(exp)
+  sum<-0
+  for (i in exp){
+    sum<-sum+(i-m)^2
+  }
+  s<-(1/(k-1))*sum
+  return(s)
+}
+
+n_pass<-c()#Vector de cantidad de pasajeros para cada experimento
+for(i in 1:100){ #Se realizan 50 experimentos
+  proceso <- procpois.H(1,7) #Se ejecuta un experimento
+  n_pass[i]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+}
+
+Spass100<-S(n_pass)
+d<-5
+if((sqrt(Spass100)/sqrt(length(n_pass)))<d){
+  print("Aficionados promedio con d máximo de 5: ")
+  print(mean(n_pass))
+} else {
+  mpass<-mean(n_pass)
+  spass<-S(n_pass)
+  k<-length(n_pass)
+  repeat{
+    proceso <- procpois.H(1,7) #Se ejecuta un experimento
+    n_pass[k+1]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+    mpassn<-mpass+((n_pass[k+1]-mpass)/(k+1))
+    spass<-(1-1/k)*spass+(k+1)*(mpassn-mpass)^2
+    mpass<-mpassn
+    k<-k+1
+    if((sqrt(spass)/sqrt(k))<d){
+      print("Aficionados promedio con d máximo de 5: ")
+      print(mpass)
+      break
+  }
+  }
+}  
+print("Iteraciones:")
+print(length(n_pass))
+
+```
+
+```{r}
+n_pass<-c()#Vector de cantidad de pasajeros para cada experimento
+prob<-c()
+for(i in 1:100){ #Se realizan 50 experimentos
+  proceso <- procpois.H(1,7) #Se ejecuta un experimento
+  n_pass[i]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+  if(n_pass[i]>200){ prob[i]<-1 } else{ prob[i]<-0 }
+  
+}
+var.prob<-function(exp){
+  m=mean(exp)
+  var=m*(1-m)
+  return(var)
+}
+Sprob100<-var.prob(prob)
+d<-0.05
+if((sqrt(Sprob100)/sqrt(length(prob)))<d){
+  print("Probabilidad de más de 200 pasajeros con d máximo de 0.05: ")
+  print(mean(prob))
+} else {
+  mprob<-mean(prob)
+  sprob<-var.prob(prob)
+  k<-length(prob)
+  repeat{
+    proceso <- procpois.H(1,7) #Se ejecuta un experimento
+    n_pass[k+1]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+    if(n_pass[k+1]>200){ prob[k+1]<-1 } else{ prob[k+1]<-0 }
+    mprobn<-mprob+((prob[k+1]-mprob)/(k+1))
+    sprob<-mprobn*(1-mprobn)
+    mprob<-mprob
+    k<-k+1
+    if((sqrt(sprob)/sqrt(k))<d){
+      print("Probabilidad de más de 200 pasajeros con d máximo de 0.05: ")
+      print(mprob)
+      break
+  }
+  }
+}  
+print("Iteraciones:")
+print(length(prob))
+```
+
+**Con intervalos de confianza:**
+
+```{r}
+
+procpois.H<-function(T,lambda)
+{
+P<-vector() #El vector P almacena la cantidad de pasajeros que llega en cada bus
+S<-vector() #El vector S almacena el tiempo de llegada de cada bus
+t<-0;I<-0   #Se inicializa la variable tiempo y el contador de buses
+    repeat 
+    {
+    u1<-runif(1); t<-t-(1/lambda)*log(u1) #Se genera un tiempo t de acuerdo a una                                               distribucion exponencial
+      if (t>T){ #Si el tiempo supera el tiempo maximo se rompe el ciclo
+        break } 
+      else { 
+        I<-I+1 #Se aumenta el contador de buses
+        S[I]<-t #Se guarda el tiempo en el vector correspondiente 
+        P[I]<-floor(runif(1, min=10, max=31)) #Se guarda la cantidad de pasajeros del                                                bus
+        }
+    }
+result<- list("S" = S, "P" = P) #Se retornaron los dos vectores
+return(result)
+}
+
+S<-function(exp){
+  m<-mean(exp)
+  k<-length(exp)
+  sum<-0
+  for (i in exp){
+    sum<-sum+(i-m)^2
+  }
+  s<-(1/(k-1))*sum
+  return(s)
+}
+
+n_pass<-c()#Vector de cantidad de pasajeros para cada experimento
+for(i in 1:100){ #Se realizan 50 experimentos
+  proceso <- procpois.H(1,7) #Se ejecuta un experimento
+  n_pass[i]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+}
+
+Spass100<-S(n_pass)
+d<-5
+ic<-95
+alpha<-(100-ic)/100
+alphamed<-alpha/2
+z<-qnorm(1-alphamed)
+if((2*z*sqrt(Spass100)/sqrt(length(n_pass)))<d){
+  print("Aficionados promedio con d máximo de 5 e intervalo de confianza del 95%: ")
+  interv<-z*sqrt(Spass100)/sqrt(length(n_pass))
+  print(paste0(mean(n_pass),"+-",interv))
+} else {
+  mpass<-mean(n_pass)
+  spass<-S(n_pass)
+  k<-length(n_pass)
+  repeat{
+    proceso <- procpois.H(1,7) #Se ejecuta un experimento
+    n_pass[k+1]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+    mpassn<-mpass+((n_pass[k+1]-mpass)/(k+1))
+    spass<-(1-1/k)*spass+(k+1)*(mpassn-mpass)^2
+    mpass<-mpassn
+    k<-k+1
+    if((2*z*sqrt(spass)/sqrt(k))<d){
+      print("Aficionados promedio con d máximo de 5 e intervalo de confianza del 95%: ")
+      interv<-z*sqrt(Spass100)/sqrt(length(n_pass))
+      print(paste0(mpass,"+-",interv))
+      break
+  }
+  }
+}  
+print("Iteraciones:")
+print(length(n_pass))
+
+```
+
+```{r}
+n_pass<-c()#Vector de cantidad de pasajeros para cada experimento
+prob<-c()
+for(i in 1:100){ #Se realizan 50 experimentos
+  proceso <- procpois.H(1,7) #Se ejecuta un experimento
+  n_pass[i]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+  if(n_pass[i]>200){ prob[i]<-1 } else{ prob[i]<-0 }
+  
+}
+var.prob<-function(exp){
+  m=mean(exp)
+  var=m*(1-m)
+  return(var)
+}
+Sprob100<-var.prob(prob)
+d<-0.05
+ic<-99
+alpha<-(100-ic)/100
+alphamed<-alpha/2
+z<-qnorm(1-alphamed)
+if((2*z*sqrt(Sprob100)/sqrt(length(prob)))<d){
+  print("Probabilidad de más de 200 pasajeros con d máximo de 0.05 e intervalo de confianza del 95%: : ")
+  interv<-z*sqrt(Spass100)/sqrt(length(n_pass))
+  print(paste0(mean(prob),"+-",interv))
+} else {
+  mprob<-mean(prob)
+  sprob<-var.prob(prob)
+  k<-length(prob)
+  repeat{
+    proceso <- procpois.H(1,7) #Se ejecuta un experimento
+    n_pass[k+1]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+    if(n_pass[k+1]>200){ prob[k+1]<-1 } else{ prob[k+1]<-0 }
+    mprobn<-mprob+((prob[k+1]-mprob)/(k+1))
+    sprob<-mprobn*(1-mprobn)
+    mprob<-mprob
+    k<-k+1
+    if((2*z*sqrt(sprob)/sqrt(k))<d){
+      print("Probabilidad de más de 200 pasajeros con d máximo de 0.05 e intervalo de confianza del 95%: : ")
+      interv<-z*sqrt(sprob)/sqrt(length(n_pass))
+      print(paste0(mprob,"+-",interv))
+      break
+  }
+  }
+}  
+print("Iteraciones:")
+print(length(prob))
+```

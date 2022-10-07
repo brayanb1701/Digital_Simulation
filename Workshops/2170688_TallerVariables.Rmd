@@ -1,0 +1,263 @@
+---
+title: "Simulación Digital - H1"
+output: html_notebook
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa  
+217206 - Kevin Javier Lozano Galvis  
+2161342 - Carlos Alberto Palencia Pombo  
+
+
+1) Use el método de inversión para generar una variable aleatoria que tenga la siguiente función de distribución acumulativa:
+
+$$F(x) = \frac{x^2 + x}{2},\ 0 \leq x \leq 1$$
+Reemplazando $F(x)$ por $g \thicksim U(0,1)$ se obtiene:
+
+$$g = \frac{x^2 + x}{2}$$
+$$2g = x^2 + x$$
+$$x^2 + x - 2g = 0$$
+$$x = \frac{-1 \pm \sqrt{1 - 4(-2g)}}{2}$$
+$$x = \frac{-1 \pm \sqrt{1 + 8g}}{2}$$
+Como $0 \leq x \leq 1$, se selecciona la raíz positiva
+
+$$x = \frac{-1 + \sqrt{1 + 8g}}{2}$$  
+
+Además, para poder comprobar si se ha realizado correctamente es necesario conocer la función de densidad que en este caso es la derivada de la función acumulada
+
+$$f(x) = x + \frac{1}{2},\ 0 \leq x \leq 1$$
+
+
+```{r}
+#Funcion que obtiene cierta cantidad de numeros de acuerdo al metodo de inversion de F(x)
+var.p1 <- function(num) {
+  #Se genera los numeros de acuerdo a una distribucion uniforme
+  u <- runif(num)
+  #Se calcula de acuerdo a la inversa
+  x = (-1 + sqrt(1+8*u))/2
+  return (x)
+}
+
+#Funcion de densidad para verificar 
+dens.p1 <- function(num){
+  f = num + 1/2
+  return (f)
+}
+
+```
+
+```{r}
+library("MASS")
+#Se generan los numeros aleatorios respecto a F(x)
+numeros<- var.p1(10000)
+#Se genera el histograma
+truehist(numeros, nbins = 20, col = "cyan", xlab = "", xlim=c(0,1))
+#Se genera la curva de densidad para comprobar
+curve(dens.p1(x), from = 0, add = TRUE )
+
+```
+
+2) Utilice una función g(x) de su elección (diferente a la distribución uniforme)  para generar mediante el método del rechazo la siguiente función de densidad:
+
+$$f(x) = xe^{-x}$$
+
+```{r}
+
+# Funcion de densidad f(x)
+dens.p2 <- function(num){
+  f = num*exp(-num)
+  return (f)
+}
+
+#Grafica para observar el comportamiento de la funcion de densidad
+curve(dens.p2(x), from = 0, to = 20,
+  xlab = "", ylab = "", main = "")
+
+```
+Para poder realizar el cálculo de la constante $c$ de forma analítica se escoge la función exponencial con $\lambda = 0.5$.
+
+$$g(x) = 0.5e^{-0.5x}$$
+
+
+```{r}
+#Se genera una secuencia de x
+x <- seq(0, 20, length = 500)
+#Se define la funcion de densidad exponencial h
+h<- dexp(x, 0.5)
+par(mfrow=c(1,2), mar = c(4,4,0.1,1))
+#Se grafica f y h
+plot(x, dens.p2(x), type="l", ylab = "f(x) and h(x)")
+lines(x, h, col="blue", lty=2)
+#se grafica f/h
+plot(x, dens.p2(x)/h, type="l", ylab = "f(x) / h(x)")
+```
+
+Para calcular el valor de $c$ analíticamente se tiene que 
+
+$$\frac{f(x)}{h(x)} = \frac{xe^{-x}}{0.5e^{-0.5x}} = 2xe^{-0.5x}$$
+
+Para encontrar el valor de $c$ se debe derivar e igualar a cero
+
+$$(2e^{-0.5x})(1-0.5x) = 0$$
+$$x = 2$$
+
+De tal forma que c es igual a 
+
+$$c = 2(2)e^{-0.5(2)} \approx 1.471518$$
+
+```{r}
+#Se crea la funcion a optimizar
+foo <- function(x) dens.p2(x)/dexp(x, 0.5)
+#Se optimiza la funcion foo
+opt <- optimize(foo, c(0, 20), maximum=TRUE)
+a <- opt$objective
+a
+```
+
+```{r}
+x <- seq(0, 20, length = 500)
+#Se crea la funcion f(x)/ch(x)
+alpha <- function(x){
+    dens.p2(x)/(1.471518*dexp(x, 0.5))
+}
+#Se crea la funcion que determina si se rechaza o se acepta un numero
+rejectionNorm <- function(n) {
+    x <- rexp(10000, 0.5) #Funcion generadora de numeros con dist exp
+    u <- runif(10000)
+    return(na.omit(ifelse(u <= alpha(x), x, NA))) 
+}
+x <- rejectionNorm(10000)
+#Porcentaje de rechazos
+rejects <- (10000-length(x))/10000
+rejects
+hist(x, ylim=c(0,0.4), breaks=20, prob=TRUE)
+curve(dens.p2(x), lty = 1, lwd = 2, ylim=c(0,0.4), add = TRUE)
+```
+
+3) Una serie de buses llega a un evento deportivo de acuerdo a un proceso de Poisson con tasa media de 5 por hora. Cada bus tiene igual probabilidad de tener 20, 21, ... 40 aficionados. El número de aficionados en diferentes buses es independiente. Escriba un algoritmo que simule la llegada de aficionados en el tiempo t=1.
+
+```{r}
+
+procpois.H<-function(T,lambda)
+{
+P<-vector() #El vector P almacena la cantidad de pasajeros que llega en cada bus
+S<-vector() #El vector S almacena el tiempo de llegada de cada bus
+t<-0;I<-0   #Se inicializa la variable tiempo y el contador de buses
+    repeat 
+    {
+    u1<-runif(1); t<-t-(1/lambda)*log(u1) #Se genera un tiempo t de acuerdo a una                                               distribucion exponencial
+      if (t>T){ #Si el tiempo supera el tiempo maximo se rompe el ciclo
+        break } 
+      else { 
+        I<-I+1 #Se aumenta el contador de buses
+        S[I]<-t #Se guarda el tiempo en el vector correspondiente 
+        P[I]<-floor(runif(1, min=20, max=41)) #Se guarda la cantidad de pasajeros del                                                bus
+        }
+    }
+result<- list("S" = S, "P" = P) #Se retornaron los dos vectores
+return(result)
+}
+
+n_bus<-c() #Vector de cantidad de buses para cada experimento
+n_pass<-c()#Vector de cantidad de pasajeros para cada experimento
+for(i in 1:50){ #Se realizan 50 experimentos
+  proceso <- procpois.H(1,5) #Se ejecuta un experimento
+  n_bus[i]<-length(proceso$S) #Se guarda la cantidad de buses del experimento
+  n_pass[i]<-sum(proceso$P) #Se guarda la cantidad de pasajeros del experimento
+}
+
+hist(n_bus, breaks=12) #Histograma para cantidad de buses
+hist(n_pass, breaks= 8) #Histograma para cantidad de pasajeros
+
+```
+
+4) Escriba un programa que genere un proceso de Poisson no homogéneo con función de intensidad
+
+$$\lambda(t)= 3 + \frac{4}{t+1}$$
+Describa y justifique la solución. Verifique que el programa aproxima adecuadamente el proceso Poisson no homogéneo.
+
+Antes de realizar el proceso no homogéneo es necesario conocer el comportamiento de la función $\lambda(t)$ para determinar un $\lambda$ máximo  
+
+```{r}
+lambda.p4 <- function(x) (3 + 4/(x+1)) #Se pasa la función
+curve(lambda.p4(x),xlim=c(0,20),ylab="lambda(x)",col="red")
+```
+
+En este caso, para esta función el $\lambda$ máximo correspondería a 7, con esto ya es posible realizar la función del proceso poisson no homogéneo que se desarrolla a continuación
+
+```{r}
+poisson<-function(lambda, Tmax) {  
+  #Se inicializan las variables
+  S<-vector() 
+  u1<-vector()
+  u2<-vector()
+  t<-0;I<-0
+  #Se calcula el valor de lambda maximo en la variable max
+max=optimize(lambda,c(0,Tmax),maximum=TRUE)$objective
+      for (i in 1:1000) {
+                            #se calcula el tiempo t con una distribucion exponencial
+                             u1[i]<-runif(1);   t<-t-((1/max)*log(u1[i]))
+                             #Si t es mayor al tiempo maximo se rompe el ciclo
+                            if (t>Tmax) {print(i);break}
+                            if (t<=Tmax) u2[i]<-runif(1)
+                            #Si el numero aleatorio u2 es menor a la restriccion se                              guarda el tiempo t considerado como un exito
+                            if(u2[i]<=(lambda(t)/max)) {I<-I+1;S[I]<-t}}
+    print("S")
+    print(S)
+    print("tasa de aceptación")
+    print(length(S)/i)
+    print("número medio de realizaciones")
+    print(i/length(S))
+    hist(S, breaks=20)
+    curve(lambda(x),xlim=c(0,20),ylab="lambda(x)",col="red",add=TRUE)
+  }
+
+poisson(lambda.p4, 20) 
+```
+
+Además, es posible realizar esta implementación considerando k intervalos de tiempo, lo cual mejoraría el nivel de aceptación, esta implementación se realiza a continuación
+```{r}
+#Esta funcion hace el calculo con k intervalos como parametro para la funcion
+#lambda(s)
+poisson<-function(Tmax,k,lambda) {
+  #Se crea la secuencia de intervalos
+  tj=seq(0,Tmax,by=Tmax/(k+1))
+  li<-vector()
+  #Se calcula lambda maximo para cada intervalo
+  for (i in 1:(k+1)){
+    li[i]=optimize(lambda,c(tj[i],tj[i+1]),maximum=TRUE)$objective
+  }
+  #Se ajusta tj para que solo tenga los valores maximos de cada intervalo 
+  tj=seq(0,Tmax,by=Tmax/(k+1))[2:(k+2)]
+  #Se inicializan variables
+  S<-vector();t<-0;J<-1;I<-0;flag=1;a<-1
+      for (i in 1:1000) {   
+                            #Se realiza po primera vez el calculo de x como
+                            #variable exponencial
+                            if(flag==1){u1<-runif(1);   X<-((-1/li[J])*log(u1))}
+                            while(t+X<=tj[J]){
+                              t=t+X; u2<-runif(1)
+                              if(u2<=(lambda(t)/li[J])) {I<-I+1;S[I]<-t}
+                              #Recalculo de la variable exponencial
+                              u1<-runif(1);   X<-((-1/li[J])*log(u1));a<-a+1
+                            }
+                            
+                              #Si se llega al ultimo intervalo, se sale
+                              if(J==k+1){break}
+                              #Se pasa al siguiente intervalo
+                              X=(X-tj[J]+t)*li[J]/li[J+1];t=tj[J];J=J+1
+                              flag=0
+                            
+      }
+    print("S")
+    print(S)
+    print("tasa de aceptación")
+    print(length(S)/a)
+    print("número medio de realizaciones")
+    print(a/length(S))
+    hist(S, breaks=20)
+    curve(lambda(x),xlim=c(0,20),ylab="lambda(x)",col="red",add=TRUE)
+  }
+
+poisson(20,20,lambda.p4)
+```
+

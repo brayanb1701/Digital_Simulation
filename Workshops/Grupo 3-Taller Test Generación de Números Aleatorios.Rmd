@@ -1,0 +1,101 @@
+---
+title: "Taller transformada inversa"
+subtitle: Simulación Digital - Grupo H1
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa
+217206 - Kevin Javier Lozano Galvis
+2161342 - Carlos Alberto Palencia Pombo
+
+#Solución
+
+1) Distribución polinomial:
+
+$$ F(x) = x^n \ para \ n > 0 \ y \ 0 \leq x \leq 1 $$
+$$ x = 	\sqrt[n]{F(x)} \ para \ n>0 \ y \ 0 \leq x \leq 1$$
+Reemplazando $F(x)$ por $g \thicksim U(0,1)$ se obtiene:
+$$ x = 	\sqrt[n]{g} $$
+
+
+
+```{r}
+#Funcion que obtiene cierta cantidad de numeros de acuerdo a la distribucion polinomial
+var.polinomial <- function(num,n){
+  u <- runif(num)
+  if (n>0)
+    result = u^(1/n)
+    return (result)
+}
+#Funcion de densidad para verificar
+dens.polinomial <- function(num,n){
+    result = n*(num^(n-1))
+    return (result)
+}
+```
+
+```{r}
+library("MASS")
+numeros<- var.polinomial(10000,3)
+truehist(numeros, nbins = 20, col = "cyan", xlab = "", xlim=c(0,1))
+curve(dens.polinomial(x, 3), from = 0, add = TRUE)
+```
+
+2) Distribución Weibull con parámetro $β=2$
+
+$$F(x) = 1-e^{-x^2}$$
+Reemplazamos $F(x)$ por $g \thicksim U(0,1)$
+$$g = 1-e^{-x^2}$$
+despejamos:
+$$1-g = e^{-x^2}$$
+$$ln(1-g) = ln(e^{-x^2})$$
+$$ln(1-g) = -x^2$$
+$$-ln(g) = x^2$$
+$$x = \pm \sqrt{-ln(g)}$$
+Escogemos la raiz positiva
+$$x = \sqrt{-ln(g)}$$
+```{r}
+library("MASS")
+genumWeibull<- function(n){
+  u <- runif(n);
+  x <- sqrt(-log(u))
+  return(x)
+}
+```
+
+```{r}
+numeros<- genumWeibull(10000)
+truehist(numeros, nbins = 50, col = "cyan", xlab = "", xlim=c(0,3))
+curve(dweibull(x,2 ), from = 0, add = TRUE)
+```
+
+3) Distribución de Cauchy.
+
+$$ F(x)= \frac{arctan(x)}{\pi}+\frac{1}{2} $$
+$$\left(F(x)-\frac{1}{2}\right)\pi= arctan(x)$$
+$$tan\left(\left(F(x)-\frac{1}{2}\right)\pi\right)= tan\left(arctan(x)\right)$$
+$$x=tan\left(\left(F(x)-\frac{1}{2}\right)\pi\right)$$
+$$x=tan\left(\left(F(x)-\frac{1}{2}\right)\pi\right)$$
+Partiendo de un proceso de generacion de numeros aleatorios uniformes:
+$$g \thicksim U(0,1)$$
+Se obtiene
+$$x=tan\left(\left(g-\frac{1}{2}\right)\pi\right)$$
+
+```{r}
+var.Cauchy<-function(n){
+  u<-runif(n)
+  x=tan((u-(1/2))*pi)
+  return(x)
+}
+```
+
+```{r}
+library("MASS")
+p3<-var.Cauchy(10000)
+truehist(p3, nbins = 10000, col = "cyan", xlab = "", xlim=c(-10,10), ylim=c(0,0.35))
+curve(dcauchy(x), from = -10, to=10, add = TRUE)
+```

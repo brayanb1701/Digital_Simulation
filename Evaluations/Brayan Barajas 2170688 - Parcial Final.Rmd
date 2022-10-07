@@ -1,0 +1,192 @@
+---
+title: "Parcial Final"
+subtitle: Simulación Digital - Grupo H1
+output: html_notebook
+---
+
+2170688- Brayan Rodolfo Barajas Ochoa
+
+
+1. 
+
+```{r}
+# A continuación definimos la función de potencia del generador eólico
+potenciaGenerador <- function(x)(0*x)*I(x<=4)+((25.124+(-39.0522*x)+(7.21*x^2))*1.5)*I(x>4&x<=14)+1500*I(x>14&x<=20)+(0*x)*I(x>=20)
+```
+
+Para calcular la variable aleatoria de velocidad del viento se hace lo siguiente: 
+
+Sea x una variable aleatoria continua que sigue la función de distribución de probabilidad acumulativa:
+$$F(x) = 1 - e^{−x^2/64}$$
+ $$e^{−x^2/64}=1-F(x)$$
+$$−x^2/64=ln(1-F(x))$$
+$$x^2=-64*ln(1-F(x))$$
+$$x=\left(-64*ln(1-F(x)\right)^{1/2}$$
+Reemplazando F(x) por g∼U(0,1):
+$$x=\left(-64*ln(g)\right)^{1/2}$$
+
+La función de densidad para F(y) está dada por su derivada:
+$$f(x)=\frac{xe^{-x^2/64}}{32}$$
+```{r}
+#Funcion que obtiene cierta cantidad de numeros de acuerdo a la distribucion dada
+vel.viento <- function(num){
+  u <- runif(num)
+  result = (-64*log(u))^(1/2)
+  return (result)
+}
+#Funcion de densidad para verificar
+dens.vel <- function(num){
+    result = num*exp(-num^2/64)/32
+    return (result)
+}
+```
+
+```{r}
+library("MASS")
+numeros<- vel.viento(10000) #Se generan los numeros de acuerdo a la funcion creada
+truehist(numeros, nbins = 20, col = "cyan", xlab = "") #Se genera el histograma
+curve(dens.vel(x), from = 0, add = TRUE) #Se compara con la curva de densidad
+```
+
+```{r}
+#Funcion para calcular tiempos de fallo
+t.averia <- function(n=1){
+  t<-(-72)*log(runif(n))
+                return(t)
+}
+
+#Realizacion de simulacion
+simulacion <- function(n=5,Tmax=168){
+  #Se inicializan variables
+  t<-0
+  r<-0
+  act<-n
+  tr<-Inf
+  #Se crean los tiempos de las averias y se ordenan
+  TA<-t.averia(n)
+  TA<-sort(TA)
+  pot_T<-0
+  vientos<-vel.viento(Tmax)
+  repeat{
+    #Se selecciona el tiempo de la siguiente falla
+    tf<-TA[1]
+    dt<-min(tf,tr)-t
+    print(1)
+    if(dt<1){
+      pot_T<-pot_T+act*potenciaGenerador(vientos[floor(t)]+1)*dt
+    }
+    else{
+      for(inter in 0:floor(dt)-1){
+        pot_T<-pot_T+act*potenciaGenerador(vientos[floor(t)+1+inter])
+      }
+      pot_T<-pot_T+act*potenciaGenerador(vientos[floor(t)+1+inter])*(dt-floor(dt))
+    }
+    print(pot_T)
+    #Caso 1 - si tiempo de falla menor al de reparacion
+    if(tf<tr){
+      r<-r+1 #se incrementan reparaciones
+      
+      act<-act-1
+      t<-tf #Se actualiza tiempo
+      TA<-sort(c(TA[2:n],(t+t.averia()))) #Se actualizan los tiempos de falla
+      
+      if(r==1){
+        tr<-t+8 #Si hay una reparacion, se actualiza tiempo de reparacion
+      }
+    }
+    #Caso 2 - Si tiempo de reparacion menor a tiempo de falla
+    if(tf>=tr){
+      r<-r-1 #se elimina una reparacion
+      act<-act+1
+      t<-tr #Se actualiza el tiempo
+      if(r>0){ #Si quedan reparaciones
+        tr<-t+8 #Se actualiza tiempo de reparacion
+      }
+      else{
+        tr<-Inf #Tiempo de reparacion infinito
+      }
+    }
+    if(t>=Tmax){
+      break
+    }
+      
+  }
+  #Se retorna pot. Total
+  return(pot_T)
+}
+
+
+
+
+#Funcion para realizar los experimentos requeridos
+experimentos<-function(nexp=100) {
+  result<-vector(length=nexp)
+  horas<-7*24
+  for(i in 1:nexp){
+    result[i]<-simulacion(n=5, Tmax=horas)
+  }
+  return(result)
+}
+
+#Calculo de Media y Varianza
+calculoMediaVar<-function(vectorDatos) {
+  #Calculamos la Media Muestral
+  n <- length(vectorDatos)
+  media<- sum(vectorDatos)/n
+  #Calculamos la varianza muestral
+  ss<-sum((vectorDatos-media)^2)/(n-1)
+  # Retirnamos la media, la variazna y los datos con los que se realizaron los calculos
+  return(list(m=media, s2=ss, datos=vectorDatos))
+}
+
+#Funcion para calcular intervalos
+cantInteraInterv<-function(errMax=0.01, results=calculoMediaVarProp(experimentos()), interConf=0.95){
+  m <- results$m
+  s2<- results$s2
+  obs<-results$datos
+  alpha<-1-interConf
+  alphaMed<- alpha/2
+  z<-qnorm(1-alphaMed)
+  k<- length(obs)
+  while ((2*z*sqrt(s2)/sqrt(k))>errMax) { #verificamos los promedios tengan un error menor a errMax
+    # Si el error maximo no es menor que errMax
+    obs[k+1]<-experimentos(n=1) #Se ejecuta una simulacion mas y se guarda ###########
+    # Se recalcula la media y la varianza
+    mn<- m + ((obs[k+1]-m)/(k+1))
+    s2 <- (1-(1/k))*s2 + (k+1)*(mn - m)^2
+    m <- mn
+    k<-k+1
+    # El proceso se repite hasta que el error sea menor
+  }
+  #Retornamos el promedio de tiempo de espera de colapso,la cantidad de iteracciones con error menor a errMax y el intervalo
+  intervalo<-z*sqrt(s2)/sqrt(k)
+  return(list(m=m, iteraciones=length(obs), inter=intervalo))
+}
+
+
+
+```
+
+Para poder realizar el calculo del intervalo de confianza se hace necesario obtener el error máximo permitido, para calcularlo debemos hacer uso de las tablas de nivel de confianza para $z_{\alpha/2}$.
+
+Para el intervalo de confianza dado (95%) tenemos que nuestro $\alpha/2 = 0.025$ y nuestro $z_{\alpha/2}=1.959964$, ahora procedemos a calcular el margen de error o error máximo de la siguiente manera:
+
+```{r}
+#Calculo de los resultados
+resultados<-calculoMediaVar(experimentos(5000))
+sprintf("Cantidad promedio de energia generada en una semana: %f ", resultados$m)
+
+#Primero tomamos el valor de desviación estandar dado en medianVanSer$s y lo dividimos en la raiz cuadrada de los datos entregados, luego se procede a multiplizar el z_alpha/2 por ese error estimado
+errorEstimado<-sqrt(resultados$s)/sqrt(length(resultados$datos)) 
+interv<-1.959964*errorEstimado
+result<-cantInteraInterv(errMax = errMaximo, results = mediaVanSer, interConf = 0.95)
+sprintf("Cantidad promedio de energia generada en una semana con un error %f y un intervalo de confianza de %d%% es de %d +- %f clientes",errMaximo,95, resultados$m, interv)
+
+```
+
+
+
+```{r}
+simulacion()
+```
+

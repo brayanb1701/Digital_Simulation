@@ -1,0 +1,165 @@
+---
+title: "Bonus Métodos específicos generación variables aleatorias"
+subtitle: Simulación Digital - Grupo H1
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa
+217206 - Kevin Javier Lozano Galvis
+2161342 - Carlos Alberto Palencia Pombo
+
+#Solución
+
+##1) Box-Muller:
+
+```{r}
+v1=numeric();v2=numeric();s=numeric();x=numeric();y=numeric()
+i=1
+while (i<=1000){
+  #Se genera v1 y v2, que son variables aleatorias uniformes entre (-1,1)
+  v1[i] <- (2*runif(1))-1
+  v2[i] <- (2*runif(1))-1
+  #Se calcula R^2=s, que a su vez se utiliza posteriormente como variable
+  #aleatoria uniforme entre (0,1)
+  s[i] <- v1[i]^2 + v2[i]^2 
+  #Si se encuentra dentro del circulo unitario, se realiza el calculo
+  if (s[i] <= 1){
+    x[i]<- v1[i]*sqrt((-2*log(s[i]))/s[i])
+    y[i]<- v2[i]*sqrt((-2*log(s[i]))/s[i])
+    i=i+1
+  }
+}
+  
+```
+
+```{r}
+hist(x)
+```
+```{r}
+hist(y)
+```
+
+```{r}
+ks.test(x,"pnorm")
+plot(ecdf(x))
+curve(pnorm(x),add=TRUE,col="red",lwd=3)
+```
+```{r}
+ks.test(y,"pnorm")
+plot(ecdf(y))
+curve(pnorm(x),add=TRUE,col="green",lwd=3)
+```
+
+```{r}
+#Contraste de correlación
+cor.test(x,y)
+```
+
+Al comparar las diferentes implementaciones del Método de Box Muller, se observa que en la primera implementación realizada en clase se utilizan funciones trigonométricas, en particular el coseno y seno para poder hallar "X" y "Y". Ahora bien, al implementarlo de la otra manera, las funciones trigonométricas se pueden reemplazar utilizando pares de números aleatorios que se encuentran dentro del círculo unitario para obtener el valor del seno y del coseno. Esto en términos computacionales reducen el costo de la implementación ya que se hace más factible realizar multiplicaciones y divisiones que hallar las funciones trigonométricas.
+
+##2) Poisson no homogéneo 
+
+```{r}
+lambda<-function(x)(5+5*x)*I(x<=3)+20*I(x>=3&x<=5)+(20-2*(x-5))*I(x>=5&x<=9)
+curve(lambda(x),xlim=c(0,9),ylab="lambda(x)",col="red")
+```
+
+```{r}
+#Esta funcion hace el calculo con intervalos predefinidos para la funcion
+#implementada previamente
+poisson<-function(Tmax) {
+  S<-vector()
+  #Lambdas maximos para cada intervalo
+  li= c(15,20,16)
+  #Tiempo maximo de cada intervalo
+  tj=c(2,6,9)
+  #Se inicializan variables
+  t<-0;J<-1;I<-0;k=2;flag=1;a<-1
+      for (i in 1:1000) {   
+                            #Se realiza po primera vez el calculo de x como
+                            #variable exponencial
+                            if(flag==1){u1<-runif(1);   X<-((-1/li[J])*log(u1))}
+                            while(t+X<=tj[J]){
+                              t=t+X; u2<-runif(1)
+                              if(u2<=(lambda(t)/li[J])) {I<-I+1;S[I]<-t}
+                              #Recalculo de la variable exponencial
+                              u1<-runif(1);   X<-((-1/li[J])*log(u1));a<-a+1
+                            }
+                            
+                              #Si se llega al ultimo intervalo, se sale
+                              if(J==k+1){break}
+                              #Se pasa al siguiente intervalo
+                              X=(X-tj[J]+t)*li[J]/li[J+1];t=tj[J];J=J+1
+                              flag=0
+                            
+                            
+                           
+                            
+      }
+    print("S")
+    print(S)
+    print("tasa de aceptación")
+    print(length(S)/a)
+    print("número medio de realizaciones")
+    print(a/length(S))
+    hist(S, breaks=9,ylim=c(0,20))
+    curve(lambda(x),xlim=c(0,9),ylim=c(0,20),ylab="lambda(x)",col="red",add=TRUE)
+  }
+
+poisson(9)
+```
+
+```{r}
+#Esta funcion hace el calculo con k intervalos como parametro para la funcion
+#lambda(s)
+poisson<-function(Tmax,k,lambda) {
+  #Se crea la secuencia de intervalos
+  tj=seq(0,Tmax,by=Tmax/(k+1))
+  li<-vector()
+  #Se calcula lambda maximo para cada intervalo
+  for (i in 1:(k+1)){
+    li[i]=optimize(lambda,c(tj[i],tj[i+1]),maximum=TRUE)$objective
+  }
+  #Se ajusta tj para que solo tenga los valores maximos de cada intervalo 
+  tj=seq(0,Tmax,by=Tmax/(k+1))[2:(k+2)]
+  #Se inicializan variables
+  S<-vector();t<-0;J<-1;I<-0;flag=1;a<-1
+      for (i in 1:1000) {   
+                            #Se realiza po primera vez el calculo de x como
+                            #variable exponencial
+                            if(flag==1){u1<-runif(1);   X<-((-1/li[J])*log(u1))}
+                            while(t+X<=tj[J]){
+                              t=t+X; u2<-runif(1)
+                              if(u2<=(lambda(t)/li[J])) {I<-I+1;S[I]<-t}
+                              #Recalculo de la variable exponencial
+                              u1<-runif(1);   X<-((-1/li[J])*log(u1));a<-a+1
+                            }
+                            
+                              #Si se llega al ultimo intervalo, se sale
+                              if(J==k+1){break}
+                              #Se pasa al siguiente intervalo
+                              X=(X-tj[J]+t)*li[J]/li[J+1];t=tj[J];J=J+1
+                              flag=0
+                            
+                            
+                           
+                            
+      }
+    print("S")
+    print(S)
+    print("tasa de aceptación")
+    print(length(S)/a)
+    print("número medio de realizaciones")
+    print(a/length(S))
+    hist(S, breaks=9,ylim=c(0,20))
+    curve(lambda(x),xlim=c(0,9),ylim=c(0,20),ylab="lambda(x)",col="red",add=TRUE)
+  }
+
+poisson(9,9,lambda)
+```
+
+Al comparar la implementación realizada en clase on la realizada en este notebook para el proceso de Poisson no homogéneo, se puede observar que la tasa de aceptación incrementa considerablemente en esta última; esto es debido a que, al generar subintervalos, los lambda(t) van a estar más cercanos al lambda máximo de cada uno de ellos, de tal modo que permite disminuir la cantidad de eventos rechazados.

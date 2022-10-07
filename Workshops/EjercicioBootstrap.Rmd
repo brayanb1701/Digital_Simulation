@@ -1,0 +1,26 @@
+---
+title: "Simulación Digital - H1"
+output: html_notebook
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa  
+
+
+```{r}
+n<-15
+x<-c(5,4,9,6,21,17,11,20,7,10,21,15,13,16,8)
+varmuestral<-(1/(n-1))*sum((x-mean(x))^2)
+vars<-c()
+for(i in 1:1000){
+  I<-floor(n*runif(n))+1
+  x2<-c()
+  x2<-x[I]
+  varmuestral2<-(1/(n-1))*sum((x2-mean(x2))^2)
+  vars[i]<-varmuestral2
+}
+
+hist(vars)
+ecm<-sum((vars-varmuestral)^2)/1000
+print(ecm)
+```
+

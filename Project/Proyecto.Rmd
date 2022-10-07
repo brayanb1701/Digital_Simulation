@@ -1,0 +1,301 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+nasaids <- c(1, 2, 3, 4,5,6,7,8)
+data<-read.csv("planets1.csv")
+colnames(data)<-c("info","date","id","name","size","x","y","z","vx","vy","vz")
+date <- as.Date(data[1,"date"])
+data[nrow(data) + 1,]=list("","",0,"Sun",28,0,0,0,0,0,0)
+#print(tail(data))
+
+actualizar<-function(r1,v1,dt=1){
+  r1<-r1+v1*dt
+  acc = -2.959e-4 * r1 / sum(r1^2)^(3./2)  #in AU/day^2
+  v1<-v1+acc*dt
+  new<-list(r1,v1)
+  return(new)
+}
+
+test<-array(dim=c(8,12,6))
+sim_duration <- 3 * 365
+
+f<-0
+ptm <- proc.time()
+for(t in 1:sim_duration){
+  c<-0
+  date<-date+1
+  for(i in 1:(nrow(data)-1)){
+    new<-actualizar(as.vector(t(data[i,6:8])),as.vector(t(data[i,9:11])))
+    data[i,6:8]<-new[[1]]
+    data[i,9:11]<-new[[2]]
+    month <- as.numeric(format(date,'%m'))
+    day <- as.numeric(format(date,'%d'))
+    if(month %% 3==0 && day==1){
+      if(c==0){f=f+1;c=1}
+      #print(data[i,6:11])
+      test[i,f,]=c(data[i,6],data[i,7],data[i,8],data[i,9],data[i,10],data[i,11])
+    }
+  }
+}
+proc.time()-ptm
+```
+
+```{r}
+print(test[3,,])
+```
+
+
+
+```{r}
+dates=c("2018-03-01","2018-06-01","2018-09-01","2018-12-01","2019-03-01","2019-06-01","2019-09-01","2019-12-01","2020-03-01","2020-06-01","2020-09-01","2020-12-01")
+nasaids <- c(1, 2, 3, 4,5,6,7,8)
+er_system<-array(1,dim=c(length(dates),(length(nasaids)*2+2)))
+for(i in 1:length(dates)){
+  url<-paste("planets-",dates[i],".csv", sep="")
+  planetst<-read.csv(url)
+  colnames(planetst)<-c("info","date","id","name","size","x","y","z","vx","vy","vz")
+  for(j in 1:length(nasaids)){
+    planet=planetst[j,]
+    er_x= abs((planet["x"]-test[j,i,1])/planet["x"])
+    er_y= abs((planet["y"]-test[j,i,2])/planet["y"])
+    er_z= abs((planet["z"]-test[j,i,3])/planet["z"])
+    er_system[i,2*j-1] <- as.numeric((er_x+er_y+er_z)/3)
+    er_vx= abs((planet["vx"]-test[j,i,4])/planet["vx"])
+    er_vy= abs((planet["vy"]-test[j,i,5])/planet["vy"])
+    er_vz= abs((planet["vz"]-test[j,i,6])/planet["vz"])
+    er_system[i,(2*j)] <- as.numeric((er_vx+er_vy+er_vz)/3)
+    
+  }
+  er_system[i,17]=sum(er_system[i,seq(1,15,2)])/length(er_system[i,seq(1,15,2)])
+  er_system[i,18]=sum(er_system[i,seq(2,16,2)])/length(er_system[i,seq(2,16,2)])
+}
+
+```
+
+
+```{r}
+print(er_system)
+```
+
+```{r}
+dates=c("2018-03-01","2018-06-01","2018-09-01","2018-12-01","2019-03-01","2019-06-01","2019-09-01","2019-12-01","2020-03-01","2020-06-01","2020-09-01","2020-12-01")
+nasaids <- c(1, 2, 3, 4,5,6,7,8)
+RMSE_system<-array(1,dim=c(length(dates),(length(nasaids)*2+2)))
+for(i in 1:length(dates)){
+  url<-paste("planets-",dates[i],".csv", sep="")
+  planetst<-read.csv(url)
+  colnames(planetst)<-c("info","date","id","name","size","x","y","z","vx","vy","vz")
+  for(j in 1:length(nasaids)){
+    planet=planetst[j,]
+    er_x= (planet["x"]-test[j,i,1])^2
+    er_y= (planet["y"]-test[j,i,2])^2
+    er_z= (planet["z"]-test[j,i,3])^2
+    RMSE_system[i,2*j-1] <- as.numeric(sqrt((er_x+er_y+er_z)/3))
+    er_vx= (planet["vx"]-test[j,i,4])^2
+    er_vy= (planet["vy"]-test[j,i,5])^2
+    er_vz= (planet["vz"]-test[j,i,6])^2
+    RMSE_system[i,(2*j)] <- as.numeric(sqrt((er_vx+er_vy+er_vz)/3))
+    
+  }
+  RMSE_system[i,17]=sum(RMSE_system[i,seq(1,15,2)])/length(RMSE_system[i,seq(1,15,2)])
+  RMSE_system[i,18]=sum(RMSE_system[i,seq(2,16,2)])/length(RMSE_system[i,seq(2,16,2)])
+}
+
+```
+
+
+```{r}
+print(RMSE_system)
+```
+
+
+```{r}
+RMSE_system = data.frame(dates,RMSE_system)
+RMSE_system
+```
+
+
+
+```{r}
+nasaids <- c(1, 2, 3, 4,5,6,7,8)
+G = 1.4878e-34
+mass_sun=1.9891e30
+mass_planets=c(3.3022e23,4.8685e24,5.9736e24,6.4185e23,1.8986e27,5.6846e26,8.6810e25,10.243e25)
+data<-read.csv("planets1.csv")
+colnames(data)<-c("info","date","id","name","size","x","y","z","vx","vy","vz")
+date <- as.Date(data[1,"date"])
+data[nrow(data) + 1,]=list("","",0,"Sun",28,0,0,0,0,0,0)
+#print(tail(data))
+
+calc.interaction<-function(objects){
+  
+}
+
+actualizar<-function(r1,v1,m_sun,m_objects,i,data,dt=1){
+  r1<-r1+v1*dt
+  forces <- c(0,0,0)
+  dr<-r1
+  distance3<-sum(dr^2)^(3./2)
+  forces<-m_sun*dr/distance3
+  for(j in 1:length(m_objects)){
+    if(i==j){
+      next
+    }
+    r2<-as.vector(t(data[j,6:8]))
+    v2<-as.vector(t(data[i,9:11]))
+    dr<-r1-r2
+    distance3<-sum(dr^2)^(3./2)
+    forces<-forces + (m_objects[j]*dr/distance3)
+  }
+  acc = -G*forces  #in AU/day^2
+  v1<-v1+acc*dt
+  new<-list(r1,v1)
+  return(new)
+}
+
+test2<-array(dim=c(8,12,6))
+sim_duration <- 3 * 365
+
+f<-0
+ptm <- proc.time()
+for(t in 1:sim_duration){
+  c<-0
+  date<-date+1
+  for(i in 1:(nrow(data)-1)){
+    new<-actualizar(as.vector(t(data[i,6:8])),as.vector(t(data[i,9:11])),mass_sun,mass_planets,i,data)
+    data[i,6:8]<-new[[1]]
+    data[i,9:11]<-new[[2]]
+    month <- as.numeric(format(date,'%m'))
+    day <- as.numeric(format(date,'%d'))
+    if(month %% 3==0 && day==1){
+      if(c==0){f=f+1;c=1}
+      #print(data[i,6:11])
+      test2[i,f,]=c(data[i,6],data[i,7],data[i,8],data[i,9],data[i,10],data[i,11])
+    }
+  }
+}
+proc.time()-ptm
+```
+
+```{r}
+print(test2[3,,])
+```
+
+```{r}
+dates=c("2018-03-01","2018-06-01","2018-09-01","2018-12-01","2019-03-01","2019-06-01","2019-09-01","2019-12-01","2020-03-01","2020-06-01","2020-09-01","2020-12-01")
+nasaids <- c(1, 2, 3, 4,5,6,7,8)
+er_system2<-array(1,dim=c(length(dates),(length(nasaids)*2+2)))
+for(i in 1:length(dates)){
+  url<-paste("planets-",dates[i],".csv", sep="")
+  planetst<-read.csv(url)
+  colnames(planetst)<-c("info","date","id","name","size","x","y","z","vx","vy","vz")
+  for(j in 1:length(nasaids)){
+    planet=planetst[j,]
+    er_x= abs((planet["x"]-test2[j,i,1])/planet["x"])
+    er_y= abs((planet["y"]-test2[j,i,2])/planet["y"])
+    er_z= abs((planet["z"]-test2[j,i,3])/planet["z"])
+    er_system2[i,2*j-1] <- as.numeric((er_x+er_y+er_z)/3)
+    er_vx= abs((planet["vx"]-test2[j,i,4])/planet["vx"])
+    er_vy= abs((planet["vy"]-test2[j,i,5])/planet["vy"])
+    er_vz= abs((planet["vz"]-test2[j,i,6])/planet["vz"])
+    er_system2[i,(2*j)] <- as.numeric((er_vx+er_vy+er_vz)/3)
+    
+  }
+  er_system2[i,17]=sum(er_system2[i,seq(1,15,2)])/length(er_system2[i,seq(1,15,2)])
+  er_system2[i,18]=sum(er_system2[i,seq(2,16,2)])/length(er_system2[i,seq(2,16,2)])
+}
+
+```
+
+
+```{r}
+dates=c("2018-03-01","2018-06-01","2018-09-01","2018-12-01","2019-03-01","2019-06-01","2019-09-01","2019-12-01","2020-03-01","2020-06-01","2020-09-01","2020-12-01")
+nasaids <- c(1, 2, 3, 4,5,6,7,8)
+RMSE_system2<-array(1,dim=c(length(dates),(length(nasaids)*2+2)))
+for(i in 1:length(dates)){
+  url<-paste("planets-",dates[i],".csv", sep="")
+  planetst<-read.csv(url)
+  colnames(planetst)<-c("info","date","id","name","size","x","y","z","vx","vy","vz")
+  for(j in 1:length(nasaids)){
+    planet=planetst[j,]
+    er_x= (planet["x"]-test2[j,i,1])^2
+    er_y= (planet["y"]-test2[j,i,2])^2
+    er_z= (planet["z"]-test2[j,i,3])^2
+    RMSE_system2[i,2*j-1] <- as.numeric(sqrt((er_x+er_y+er_z)/3))
+    er_vx= (planet["vx"]-test2[j,i,4])^2
+    er_vy= (planet["vy"]-test2[j,i,5])^2
+    er_vz= (planet["vz"]-test2[j,i,6])^2
+    RMSE_system2[i,(2*j)] <- as.numeric(sqrt((er_vx+er_vy+er_vz)/3))
+    
+  }
+  RMSE_system2[i,17]=sum(RMSE_system2[i,seq(1,15,2)])/length(RMSE_system2[i,seq(1,15,2)])
+  RMSE_system2[i,18]=sum(RMSE_system2[i,seq(2,16,2)])/length(RMSE_system2[i,seq(2,16,2)])
+}
+
+```
+
+
+```{r}
+print(RMSE_system2)
+```
+
+
+```{r}
+RMSE_system2 = data.frame(dates,RMSE_system2)
+RMSE_system2
+```
+
+
+```{r}
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X1, col="Segundo Modelo")) + geom_line(aes(y = X1, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X1, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X1, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de Mercurio")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X3, col="Segundo Modelo")) + geom_line(aes(y = X3, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X3, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X3, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de Venus")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X5, col="Segundo Modelo")) + geom_line(aes(y = X5, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X5, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X5, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de la Tierra")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X7, col="Segundo Modelo")) + geom_line(aes(y = X7, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X7, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X7, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de Marte")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X9, col="Segundo Modelo")) + geom_line(aes(y = X9, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X9, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X9, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de Júpiter")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X11, col="Segundo Modelo")) + geom_line(aes(y = X11, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X11, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X11, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de Saturno")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X13, col="Segundo Modelo")) + geom_line(aes(y = X13, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X13, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X13, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de Urano")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X15, col="Segundo Modelo")) + geom_line(aes(y = X15, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X15, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X15, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE para la posición de Neptuno")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+```
+
+```{r}
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X2, col="Segundo Modelo")) + geom_line(aes(y = X2, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X2, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X2, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de Mercurio")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X4, col="Segundo Modelo")) + geom_line(aes(y = X4, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X4, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X4, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de Venus")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X6, col="Segundo Modelo")) + geom_line(aes(y = X6, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X6, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X6, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de la Tierra")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X8, col="Segundo Modelo")) + geom_line(aes(y = X8, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X8, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X8, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de Marte")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X10, col="Segundo Modelo")) + geom_line(aes(y = X10, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X10, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X10, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de Júpiter")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X12, col="Segundo Modelo")) + geom_line(aes(y = X12, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X12, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X12, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de Saturno")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X14, col="Segundo Modelo")) + geom_line(aes(y = X14, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X14, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X14, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de Urano")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X16, col="Segundo Modelo")) + geom_line(aes(y = X16, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X16, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X16, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE para la velocidad de Neptuno")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+```
+
+```{r}
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X17, col="Segundo Modelo")) + geom_line(aes(y = X17, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X17, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X17, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error posición", title = "RMSE promedio para la posición de los Planetas")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+
+ggplot(data = RMSE_system2, aes(x = dates, group = 1)) + geom_point(aes(y=X18, col="Segundo Modelo")) + geom_line(aes(y = X18, color="Segundo Modelo")) + geom_point(data = RMSE_system, aes(x = dates, y = X18, group = 1, col="Primer Modelo")) + geom_line(data = RMSE_system, aes(x = dates, y = X18, group = 1, col="Primer Modelo")) + labs(x = "Trimestres (2018-2020)", y = "Error velocidad", title = "RMSE promedio para la velocidad de los Planetas")  +  scale_colour_manual("", breaks = c("Primer Modelo", "Segundo Modelo"), values = c("orange3", "navy"))
+```
+
+
+
+
+

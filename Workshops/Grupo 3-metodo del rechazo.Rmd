@@ -1,0 +1,92 @@
+---
+title: "Taller transformada inversa"
+subtitle: Simulación Digital - Grupo H1
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa
+217206 - Kevin Javier Lozano Galvis
+2161342 - Carlos Alberto Palencia Pombo
+
+#Solución
+
+1) Para esta distribución beta con parametros $α=2$ y $β=2$, tenemos que la función de densidad de probabilidad es:
+
+$$ f(x) = 20x(1-x)^3 \; 0<x<1$$
+```{r} 
+curve(dbeta(x, shape1 = 2, shape2 = 4), from = 0, to = 1,
+  xlab = "", ylab = "", main = "")
+```
+
+```{r}
+foo <- function(x) dbeta(x, shape1 = 2, shape2 = 4)/1
+opt <- optimize(foo, c(0, 1), maximum=TRUE)
+a <- opt$objective
+a
+```
+```{r}
+x <- seq(0, 1, length = 200)
+db <- dbeta(x, shape1 = 2, shape2 = 4)
+alpha <- function(x){
+    dbeta(x, shape1 = 2, shape2 = 4)/2.109375
+}
+rejectionNorm <- function(n) {
+    x <- runif(10000,0,1) #Funcion generadora de numeros. Distrib Cauchy...
+    u <- runif(10000)
+    return(na.omit(ifelse(u <= alpha(x), x, NA)))
+}
+x <- rejectionNorm(10000)
+rejects <- (10000-length(x))/10000
+rejects
+hist(x, prob=TRUE)
+curve(dbeta(x, shape1 = 2, shape2 = 4), lty = 1, lwd = 2, add = TRUE)
+```
+2) Utilice el método del rechazo para generar una función gamma con parámetros $(\frac{3}{2},1)$, tenemos que la función de densidad de probabilidad es:
+
+$$ f(x) = \frac{2}{\sqrt{\pi}}x^{1/2}e^{-x} $$
+
+```{r} 
+curve(dgamma(x, shape = 3/2), from = 0, to = 10,
+  xlab = "", ylab = "", main = "")
+```
+
+La media de la función gamma es $\frac{3}{2}$, por lo que se puede utilizar una función exponencial con igual media
+
+```{r}
+de <- dexp(x,2/3)
+curve(dgamma(x, shape = 3/2), from = 0, to = 10,
+  xlab = "", ylab = "", main = "")
+lines(x, de, col="blue", lty=2)
+```
+
+
+```{r}
+foo <- function(x) dgamma(x, shape = 3/2)/dexp(x,2/3)
+opt <- optimize(foo, c(0, 10), maximum=TRUE)
+a <- opt$objective
+a
+```
+
+```{r}
+x <- seq(0, 5, length = 200)
+dg <- dgamma(x, shape = 2/3)
+alpha <- function(x){
+    dgamma(x, shape = 3/2)/(1.257317*dexp(x,2/3))
+}
+rejectionNorm <- function(n) {
+    x <- rexp(10000, 2/3) #Funcion generadora de numeros. Distrib Cauchy...
+    u <- runif(10000)
+    return(na.omit(ifelse(u <= alpha(x), x, NA)))
+}
+x <- rejectionNorm(10000)
+rejects <- (10000-length(x))/10000
+rejects
+hist(x,  prob=TRUE)
+curve(dgamma(x, shape = 3/2), lty = 1, lwd = 2, add = TRUE)
+```
+
+

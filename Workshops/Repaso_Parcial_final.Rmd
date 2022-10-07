@@ -1,0 +1,223 @@
+---
+title: "Repaso Parcial Final"
+subtitle: Simulación Digital - Grupo H1
+output: html_notebook
+---
+
+2170688- Brayan Rodolfo Barajas Ochoa
+
+
+1. 
+```{r}
+circ <- function(x,y){
+  x^2+y^2
+}
+
+experimentos<-function(n=100) {
+  result=c()
+  for(i in 1:n){
+    u<-runif(1)
+    v<-runif(1)
+    if(circ(u,v)<=1){
+      result[i]=1
+    }
+    else{
+      result[i]=0
+    }
+  }
+  return(result)
+}
+
+calculoMediaVarProp<-function(vectorDatos) {
+  #Calculamos la Media Muestral
+  n <- length(vectorDatos)
+  media<- sum(vectorDatos)/n
+  #Calculamos la varianza muestral
+  ss<-media*(1-media)
+  # Retirnamos la media, la variazna y los datos con los que se realizaron los calculos
+  return(list(m=media, s2=ss, datos=vectorDatos))
+}
+
+cantInteraIntervProp<-function(errMax=0.01, results=calculoMediaVarProp(experimentos()), interConf=0.95){
+  m <- results$m
+  s2<- results$s2
+  obs<-results$datos
+  alpha<-1-interConf
+  alphaMed<- alpha/2
+  z<-qnorm(1-alphaMed)
+  k<- length(obs)
+  while ((2*z*sqrt(s2)/sqrt(k))>=errMax) { #verificamos los promedios tengan un error menor a errMax
+    # Si el error maximo no es menor que errMax
+    obs[k+1]<-experimentos(n=1) #Se ejecuta una simulacion mas y se guarda ###########
+    # Se recalcula la media y la varianza
+    mn<- m + ((obs[k+1]-m)/(k+1))
+    s2 <- mn*(1-mn)
+    m <- mn
+    k<-k+1
+    # El proceso se repite hasta que el error sea menor
+  }
+  #Retornamos el promedio de tiempo de espera de colapso,la cantidad de iteracciones con error menor a errMax y el intervalo
+  intervalo<-z*sqrt(s2)/sqrt(k)
+  return(list(m=m, iteraciones=length(obs), inter=intervalo))
+}
+
+```
+
+```{r}
+resultados<-calculoMediaVarProp(experimentos(100))
+results<-cantInteraIntervProp(0.01,resultados,0.95)
+sprintf("Probabilidad con un error maximo de 0.01 y un intervalo de confianza de 0.95: %f +- %f ", results$m, results$inter)
+sprintf("Cantidad de replicas que permiten el calculo de una buena estimacion de Probabilidad con un error maximo de 0.01 y un intervalo de confianza de 0.95: %d replicas", results$iteraciones)
+```
+# Si no es proporcion
+```{r}
+calculoMediaVar<-function(vectorDatos) {
+  #Calculamos la Media Muestral
+  n <- length(vectorDatos)
+  media<- sum(vectorDatos)/n
+  #Calculamos la varianza muestral
+  ss<-sum((vectorDatos-media)^2)/(n-1)
+  # Retirnamos la media, la variazna y los datos con los que se realizaron los calculos
+  return(list(m=media, s2=ss, datos=vectorDatos))
+}
+
+cantInteraIntervProp<-function(errMax=0.01, results=calculoMediaVarProp(experimentos()), interConf=0.95){
+  m <- results$m
+  s2<- results$s2
+  obs<-results$datos
+  alpha<-1-interConf
+  alphaMed<- alpha/2
+  z<-qnorm(1-alphaMed)
+  k<- length(obs)
+  while ((2*z*sqrt(s2)/sqrt(k))>=errMax) { #verificamos los promedios tengan un error menor a errMax
+    # Si el error maximo no es menor que errMax
+    obs[k+1]<-experimentos(n=1) #Se ejecuta una simulacion mas y se guarda ###########
+    # Se recalcula la media y la varianza
+    mn<- m + ((obs[k+1]-m)/(k+1))
+    s2 <- (1-(1/k))*s2 + (k+1)*(mn - m)^2
+    m <- mn
+    k<-k+1
+    # El proceso se repite hasta que el error sea menor
+  }
+  #Retornamos el promedio de tiempo de espera de colapso,la cantidad de iteracciones con error menor a errMax y el intervalo
+  intervalo<-z*sqrt(s2)/sqrt(k)
+  return(list(m=m, iteraciones=length(obs), inter=intervalo))
+}
+```
+
+
+2. 
+
+```{r}
+f.costo<-function(n=1){
+  c<-(-1000)*log(runif(n)) #funcion de costo con media de 2500000
+                return(c)
+}
+
+procpois.H<-function(T,lambda)
+{
+S<-vector() #El vector S almacena el tiempo 
+t<-0;I<-0  #Se inicializa la variable tiempo
+    repeat 
+    {
+    u1<-runif(1); t<-t-(1/lambda)*log(u1) #Se genera un tiempo t de acuerdo a una                                               distribucion exponencial
+      if (t>T){ #Si el tiempo supera el tiempo maximo se rompe el ciclo
+        break 
+        } 
+      else { 
+        I<-I+1
+        S[I]<-t #Se guarda el tiempo en el vector correspondiente 
+        }
+    }
+return(S)
+}
+
+simulacion<-function(lambda=10, Tmax=365, ci=25000, pagos=11000){
+  ts<-procpois.H(Tmax,lambda)
+  ts[length(ts)+1]<-Inf
+  capital<-ci
+  j<-1
+  positive<-TRUE
+  for(i in 1:Tmax){
+    capital<-capital+pagos
+    while(ts[j]<i){
+      capital<-capital-f.costo()
+      j<-j+1
+    }
+    if(capital<=0){
+      positive<-FALSE
+      break
+    }
+  }
+  return(positive)
+}
+
+simulacion2<-function(lambda=10, Tmax=365, ci=25000, pagos=11000){
+  ts<-procpois.H(Tmax,lambda)
+  capital<-ci
+  positive<-TRUE
+  for(i in 1:Tmax){
+    capital<-capital+pagos
+    n_rec<-length(ts[ts>=i-1 & ts<i])
+    for(j in 1:n_rec){
+    capital<-capital-f.costo()
+    }
+    if(capital<=0){
+      positive<-FALSE
+      break
+    }
+  }
+  return(positive)
+}
+
+experimentos<-function(nexp=100, lambda=10, Tmax=365, ci=25000, pagos=11000) {
+  result<-vector(length=nexp)
+  for(i in 1:nexp){
+    result[i]<-simulacion(lambda, Tmax, ci, pagos)
+  }
+  return(result)
+}
+
+experimentos2<-function(nexp=100, lambda=10, Tmax=365, ci=25000, pagos=11000) {
+  result<-vector(length=nexp)
+  for(i in 1:nexp){
+    result[i]<-simulacion2(lambda, Tmax, ci, pagos)
+  }
+  return(result)
+}
+
+```
+
+```{r}
+resultados<-experimentos2()
+prob<-mean(resultados)
+print(prob)
+```
+```{r}
+bootstrap<-function(n=100,b=1000,datos=experimentos2(500)){
+  media<-mean(datos)
+  varmuestral<-(1/(length(datos)-1))*sum((datos-media)^2)
+  vars<-c()
+  medias<-c()
+  for(i in 1:b){
+  datosi<-sample(datos, size = n, replace = TRUE)
+  mediai<-mean(datosi)
+  medias[i]<-mediai
+  varmuestrali<-(1/(n-1))*sum((datosi-mediai)^2)
+  vars[i]<-varmuestrali
+  }
+  hist(medias)
+  
+  hist(vars)
+  ecm_media<-sum((medias-media)^2)/b
+  print(ecm_media)
+  ecm_vars<-sum((vars-varmuestral)^2)/b
+  print(ecm_vars)
+}
+```
+
+```{r}
+resultados<-experimentos2(nexp=500)
+bootstrap(datos = resultados)
+```
+

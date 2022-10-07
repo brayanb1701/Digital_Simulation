@@ -1,0 +1,145 @@
+---
+title: "Parcial 2"
+subtitle: Simulación Digital - Grupo H1
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa
+
+1) Sea Y una variable aleatoria continua que sigue la función de distribución de probabilidad acumulativa:
+$$F(y) = 1 - e^{−2y^3}$$
+Implemente la generación de números aleatorios que siga la misma función de
+densidad de probabilidad de Y utilizando (a) El método de transformada inversa y
+(b) el método del rechazo. Verifique las dos implementaciones usando histogramas
+de al menos 1000 números generados.
+
+a. $$e^{−2y^3}=1-F(y)$$
+$$−2y^3=ln(1-F(y))$$
+$$y^3=-\frac{ln(1-F(y))}{2}$$
+$$y=\left(-\frac{ln(1-F(y))}{2}\right)^{1/3}$$
+Reemplazando F(y) por g∼U(0,1):
+$$y=\left(-\frac{ln(g)}{2}\right)^{1/3}$$
+
+La función de densidad para F(y) está dada por su derivada:
+$$f(y)=6y^2e^{-2y^3}$$
+```{r}
+#Funcion que obtiene cierta cantidad de numeros de acuerdo a la distribucion dada
+var.p1 <- function(num){
+  u <- runif(num)
+  result = (-log(u)/2)^(1/3)
+  return (result)
+}
+#Funcion de densidad para verificar
+dens.p1 <- function(num){
+    result = 6*num^2*exp(-2*num^3)
+    return (result)
+}
+```
+
+```{r}
+library("MASS")
+numeros<- var.p1(10000) #Se generan los numeros de acuerdo a la funcion creada
+truehist(numeros, nbins = 20, col = "cyan", xlab = "") #Se genera el histograma
+curve(dens.p1(x), from = 0, add = TRUE) #Se compara con la curva de densidad
+```
+
+b) En el gráfico anterior se puede observar el comportamiento de la función de densidad dada, para realizar el método del rechazo se utilizará una variable aleatoria con función de densidad exponencial con lambda igual a 1.5.
+
+```{r}
+x <- seq(0, 3, length = 200)
+dp1 <- dens.p1(x) #Se crea la funcionf(x)
+de <- dexp(x,1.5) #Se crea g(x)
+par(mfrow=c(1,2), mar = c(4,4,0.1,1))
+plot(x, dp1, type="l", ylab = "f(x) and h(x)    . In the R code: dp1 and de")
+lines(x, de, col="blue", lty=2)
+plot(x, dp1/de, type="l", ylab = "f(x) / h(x)   . In the R code: (dp1 / de")
+```
+
+```{r}
+#Funcion a optimizar para obtener c
+foo <- function(x) dens.p1(x)/dexp(x,1.5)
+opt <- optimize(foo, c(0, 3), maximum=TRUE) #Optimizacion para hallar el maximo
+a <- opt$objective
+a
+```
+
+```{r}
+#funcion que genera numeros dist. exp
+rn.exp<-function(n=1,l=1.5){
+  c<-(-1/l)*log(runif(n))
+                return(c)
+}
+```
+
+
+```{r}
+x <- seq(0, 5, length = 200)
+dp1 <- dens.p1(x) #Funcion f
+alpha <- function(x){
+    dens.p1(x)/(3.055709*dexp(x,1.5)) #Condicion a cumplir para decidir si rechazar o aceptar
+}
+rejectionNorm <- function(n) {
+    x <- rn.exp(10000, 1.5) #Funcion generadora de numeros. Distrib Exp...
+    u <- runif(10000)
+    return(na.omit(ifelse(u <= alpha(x), x, NA))) #se valida la condicion
+}
+var <- rejectionNorm(10000) #se ejecuta para 10000 numeros
+rejects <- (10000-length(var))/10000
+rejects #numero de rechazos
+
+hist(var, breaks=20,  prob=TRUE) #histograma de numeros generados
+curve(dens.p1(x), lty = 1, lwd = 2, add = TRUE) #Grafica de densidad para comparar
+```
+
+**Conclusión:**
+Se puede observar que ambos métodos fueron efectivos para generar la variable aleatoria dada, tanto el método de inversa como el de rechazo.
+
+2) Una compañía de seguros de accidentes tiene 1000 personas
+aseguradas. Cada uno de ellos presentará de forma independiente una reclamación
+en el siguiente mes con una probabilidad de p=0.05. Asumiendo que el monto de
+cada reclamación realizada es una variable aleatoria exponencial independiente con
+un promedio de 2’500.000 pesos, use la simulación para estimar la probabilidad de
+que la suma de las reclamaciones exceda 150’000.000 pesos. Realice la simulación
+al menos 1000 veces para reportar su respuesta.
+
+Como se menciona que la media de la variable aleatoria exponencial es de 2500000, se tiene que:
+$$\frac{1}{\lambda}=2500000$$
+
+```{r}
+f.costo<-function(n=1){
+  c<-(-2500000)*log(runif(n)) #funcion de costo con media de 2500000
+                return(c)
+}
+
+
+simulacion<-function(personas=1000){
+  p<-0.05 #probabilidad de reclamo
+  prob<-runif(personas)
+  costos<-f.costo(personas) #costos de acuerdo a la funcion dada
+  suma<-0 #variable que guarda la suma del mes
+  for(i in 1:personas){ #Se calcula para cada persona
+    if(prob[i]<=0.05){ #si la probabilidad es menor igual al 0.05
+      suma=suma+costos[i] #Se adiciona el costo correspondiente
+    }
+  }
+  return(suma) #Se retorna la suma del mes
+}
+```
+
+```{r}
+mayores<-0 #Para calcular la probabilidad de deben contar la cantidad de veces que fue mayor al valor dado
+for(i in 1:5000){ #Se realizan 5000 experimentos (meses)
+  if(simulacion()>150000000){ #Si la suma del mes es mayor al valor
+    mayores<-mayores+1 #se adiciona al contador
+  }
+}
+probabilidad<-mayores/5000 #Se calcula la probabilidad al dividir en la cantidad de exp. (meses)
+print("Se tiene probabilidad de: ")
+print(probabilidad)
+```
+
+

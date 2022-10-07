@@ -1,0 +1,269 @@
+---
+title: "Taller transformada inversa"
+subtitle: Simulación Digital - Grupo H1
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+2170688 - Brayan Rodolfo Barajas Ochoa
+217206 - Kevin Javier Lozano Galvis
+2161342 - Carlos Alberto Palencia Pombo
+
+1) En un modelo de cola con un solo servidor, la llegada de unos clientes sigue un proceso no homogéneo de Poisson, cuya tasa inicial es 3 por hora. La tasa se incrementa de forma lineal hasta que alcanza las 12 llegadas por hora a las 5 horas. Finalmente, la tasa de llegada de clientes decrece linealmente hasta que llega a 5 llegadas por hora después de 5 horas más. Realice la simulación durante las 10 horas si el tiempo de servicio sigue una distribución exponencial con tasa de 9 por hora. Use la simulación para estimar el valor esperado de clientes atendidos durante las 10 horas de simulación. Verifique que la distribución de llegada de los clientes sigue el proceso de Poisson descrito anteriormente. Ejecute 1000 veces la simulación para obtener el promedio del estimado. 
+
+```{r}
+#Se crea la funcion lambda para el proceso no homogeneo
+lambda<-function(x)(9/5*x+3)*I(x<=5)+(-7/5*x + 19)*I(x>5&x<=10)
+curve(lambda(x),xlim=c(0,10),ylab="lambda(x)",col="red")
+```
+
+```{r}
+#algoritmo
+#Se inicializan los vectores
+S<-vector()
+u1<-vector()
+u2<-vector()
+#Funcion para proceso no homogeneo
+procpois<-function(Tmax) {
+  t<-0;I<-0  
+      for (i in 1:10000) {
+                             u1[i]<-runif(1);   t<-t-((1/12)*log(u1[i]))
+                            if (t>Tmax) {break}
+                            if (t<=Tmax) u2[i]<-runif(1)
+                            if(u2[i]<=(lambda(t)/12)) {I<-I+1;S[I]<-t}}
+    return(S)
+  }
+#Se crea el vector de tiempos de llegada
+LL=procpois(10)
+#Se verifica el comportamiento de lambda
+hist(LL)
+```
+
+```{r}
+LL[length(LL)+1]<-Inf
+# Generación de tiempo de servicio de acuerdo a distribucion exponencial
+tserv<-function() {
+                t<-(-1/9)*log(runif(1))
+                return(t)
+                }
+tserv()
+```
+
+```{r}
+# Evolución del sistema
+unserv<-function(LL,cierre)  
+{   #Bucle principal de la aplicación
+    t<-0            # variable tiempo
+    NLL<-0              # contador de llegadas
+    NS<-0           # contador de salidas
+    n<-0            # SS: clientes en el sistema
+    Y<-vector()     # tiempos de atención
+    Sal<-vector()       # output instantes de salida
+    c<-vector()     # clientes en el sistema
+    Tp<-0           # tiempo después de cierre
+            #Lista de sucesos
+    tLL<-LL[1]      # instante de llegada del cliente 1
+    tS<-Inf     # instante salida cliente
+    tm<-vector()    # tiempo cliente en el sistema
+    i<-1
+    j<-1
+repeat
+    {
+
+# Caso 1
+
+    if ((tLL<=tS) & (tLL<=cierre))
+        {
+        t<-tLL          # t al instante de llegada 
+        NLL<-NLL+1      # contador número de llegadas
+        i<-i+1
+        tLL<-LL[i]      # leemos las llegadas
+        n<-n+1          # SS número de clientes en el sistema
+         c[length(c)+1]<-n  # recogemos el número de clientes en el sistema
+        if (n==1)       # en el caso de que exista un único cliente en el sistema
+            {       
+            Y[j]<-tserv()   # tiempos de atención
+            tS <- t+Y[j]        # asignamos un tiempo de atención al único cliente
+            j<-j+1  
+                }
+        }
+
+# Caso 2
+
+    if((tS<=tLL) & tS<=cierre)
+        {   
+        t<-tS
+        NS<-NS + 1
+        n<-n-1
+        c[length(c)+1]<-n
+        Sal[NS]<-t
+        tm[NS]<-Sal[NS]-LL[NS]  # tiempo en el sistema 
+        if (n == 0) # si no quedan clientes y quedan clientes por llegar
+                {       
+                tS<-Inf 
+                }
+      
+            if (n >0) # si hay clientes generar tiempo de sevicio
+                {       
+                Y[j]<-tserv()   
+                    tS<-t+Y[j]
+                j<-j+1
+                }
+            }
+
+# después de la hora de cierre
+# Caso 3 
+    
+    if(min(tLL,tS)>cierre) # hay clientes en el sistema
+        { 
+        if (n>0)    # si hay clientes generar tiempo de sevicio
+            {     
+                t<-tS           
+                NS<-NS + 1      
+                n<-n-1
+            c[length(c)+1]<-n
+                Sal[NS] <- t
+                tm[NS]<-Sal[NS]-LL[NS]
+                if (n > 0)
+                {       
+                Y[j]<-tserv()   
+                    tS<-t+Y[j]
+                j<-j+1
+                }
+            }
+
+# Caso 4
+
+        if (n == 0) # si no quedan clientes 
+                {       
+                Tp<-max(t-cierre,0)
+                break           
+                }
+
+        }
+    }
+    if(tS==Inf)tS<-t
+    resultados<-list("tiempos en el sistema",tm,"clientes en el sistema",c,
+                "tiempo medio cliente en el sistema",
+                mean(tm,na.rm=TRUE),
+                "número medio clientes en el sistema",mean(c),
+                "tiempo después cierre",Tp,"tiempos atención",Y,
+                "última salida",tS)
+    return(resultados)
+}
+```
+
+
+```{r}
+#Funcion para sacar el promedio de clientes atendidos en n simulaciones
+Promclients<-function(n)
+{
+s<-vector(length=n)
+    for(i in 1 :n)
+    {
+    #Se obtienen la cantidad de clientes atendidos en una simulacion y se guarda
+    #en el vector s 
+    LL=procpois(10)
+    LL[length(LL)+1]<-Inf
+    s[i]<-length(unserv(LL,10)[[2]])
+    }
+#Se retorna la media de clientes de todas las simulaciones
+return(mean(s))
+}
+#Se ejecuta la funcion
+print("Promedio de clientes atendidos: ")
+print(Promclients(1000))
+```
+
+2) Un sistema necesita n máquinas funcionando. Para asegurarse en caso de fallas mecánicas se dispone de algunas máquinas adicionales. Si una máquina falla es inmediatamente reemplazada por una de las máquinas disponibles. La máquina con fallos es enviada a la sección de reparación. La sección de reparación consiste en una sola persona que repara las máquinas de una en una. Una vez la máquina es reparada se reincorpora al conjunto de máquinas disponibles como reemplazo. Todos los tiempos de reparación son variables aleatorias independientes con distribución de probabilidad G. Cada vez que una maquina es puesta en uso, el tiempo que funciona antes de sufrir una falla mecánica es una variable aleatoria con función de probabilidad F. Se dice que el sistema colapsa cuando una máquina falla y no hay máquinas extra disponibles para reemplazo. Asumiendo que inicialmente existen n + s máquinas funcionales de las cuales n están en uso, y s pueden ser utilizadas para reemplazar las máquinas que fallen, encuentre el tiempo esperado T, en el cual el sistema colapsa después de ejecutar la simulación 100 veces, si n=4, s=3, $F(x) = 1 - e^{-x},$ y $G(x) = 1 - e^{-2x}$. Realice el análisis del sistema y utilizando la estrategia de simulación basada en eventos discretos implemente la simulación en R.
+
+Como lo que se quiere estudiar es el tiempo en el que colapsa el sistema, es decir, en el que la cantidad de máquinas por reparar es igual a la cantidad de máquinas de reemplazo más una; se centra la simulación a esta variable, en este caso denotada como r.
+
+Para realizar la implementación de la simulación, se parte de un conjunto de n tiempos que siguen la distribución F, los cuales indican el tiempo en el que se estropeará cada máquina. A partir de esto, se utiliza para comparar con el siguiente tiempo de reparación y así escoger el próximo evento a ocurrir.
+
+s: máquinas de reemplazo.
+r: máquinas dañadas (por reparar).
+
+tf: tiempo del próximo fallo.
+tr: tiempo de reparación.
+
+
+```{r}
+#Distribucion F para averia
+t.averia <- function(n=1){
+  t<-(-1/1)*log(runif(n))
+                return(t)
+}
+#Distribucion G para reparacion
+t.repara <- function(n=1){
+  t<-(-1/2)*log(runif(n))
+                return(t)
+}
+print(t.averia())
+print(t.repara())
+```
+
+```{r}
+simulacion <- function(n,s){
+  #Se inicializan variables
+  t<-0
+  r<-0
+  tr<-Inf
+  #Se crean los tiempos de las averias y se ordenan
+  TA<-t.averia(n)
+  TA<-sort(TA)
+  repeat{
+    #Se selecciona el tiempo de la siguiente falla
+    tf<-TA[1]
+    #Caso 1 - si tiempo de falla menor al de reparacion
+    if(tf<tr){
+      r<-r+1 #se incrementan reparaciones
+      t<-tf #Se actualiza tiempo
+      if(r==s+1){
+        Tc<-t #El sistema colapsa
+        break
+      }
+      else{
+        TA<-sort(c(TA[2:n],(t+t.averia()))) #Se actualizan los tiempos de falla
+      }
+      if(r==1){
+        tr<-t+t.repara() #Si hay una reparacion, se actualiza tiempo de reparacion
+      }
+    }
+    #Caso 2 - Si tiempo de reparacion menor a tiempo de falla
+    if(tf>=tr){
+      r<-r-1 #se elimina una reparacion
+      t<-tr #Se actualiza el tiempo
+      if(r>0){ #Si quedan reparaciones
+        tr<-t+t.repara() #Se actualiza tiempo de reparacion
+      }
+      else{
+        tr<-Inf #Tiempo de reparacion infinito
+      }
+    }
+    
+  }
+  #Se retorna tiempo de colapso
+  return(Tc)
+}
+
+```
+
+```{r}
+#Condiciones dadas
+n<-4
+s<-3
+#Vector de tiempos de colapso
+Tesp<-vector(length=100)
+#Hacer 1000 simulaciones
+for(i in 1:100){
+  Tesp[i]<-simulacion(n,s)
+}
+print('El tiempo esperado de colapso es: ')
+print(mean(Tesp)) #Se muestra el tiempo esperado de colapso
+```
+
+
